@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>FIRST LAP — Your first HYROX race</title>
+    <meta
+      name="description"
+      content="Learn HYROX by moving through it. Hold to run, train and finish a complete first-person race."
+    />
+    <link rel="canonical" href="https://hyrox-first-lap.pages.dev/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FIRST LAP" />
+    <meta property="og:url" content="https://hyrox-first-lap.pages.dev/" />
+    <meta property="og:title" content="FIRST LAP — 처음 경험하는 하이록스" />
+    <meta
+      property="og:description"
+      content="길게 누르면 달리고, 손을 떼면 멈춥니다. 1인칭 경기장에서 HYROX 8개 종목을 완주까지 체험해 보세요."
+    />
+    <meta property="og:image" content="https://hyrox-first-lap.pages.dev/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="FIRST LAP — 슬레드 푸시 구간의 1인칭 경기장 화면" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="FIRST LAP — 처음 경험하는 하이록스" />
+    <meta
+      name="twitter:description"
+      content="길게 누르면 달리고, 손을 떼면 멈춥니다. 1인칭 경기장에서 HYROX 8개 종목을 완주까지 체험해 보세요."
+    />
+    <meta name="twitter:image" content="https://hyrox-first-lap.pages.dev/og.png" />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23181b1c'/%3E%3Cpath d='M9 24V8h16v5H14v3h9v5h-9v3Z' fill='%23ffffff'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/src/styles/main.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="brand" href="./" aria-label="FIRST LAP home" data-i18n-aria-label="FIRST LAP home"
+        ><span class="brand-symbol">F<span></span></span>FIRST LAP<span class="brand-slash">/</span
+        ><span class="brand-sub"
+          ><span data-i18n="HYROX EXPERIENCE">HYROX EXPERIENCE</span></span
+        ></a
+      >
+      <div class="header-actions">
+        <div class="header-note">
+          <span data-i18n="Your first race starts here.">Your first race starts here.</span
+          ><span class="edition"><span data-i18n="01 — FIRST RACE">01 — FIRST RACE</span></span>
+        </div>
+        <label for="language" class="sr-only"><span data-i18n="Language">Language</span></label
+        ><select
+          id="language"
+          class="language-select"
+          aria-label="Language"
+          data-i18n-aria-label="Language"
+        >
+          <option value="en">English</option>
+          <option value="ko">한국어</option>
+        </select>
+      </div>
+    </header>
+    <main>
+      <section id="analyticsNotice" class="analytics-notice" aria-label="Analytics choice" hidden>
+        <p><span id="analyticsText"></span> <a id="analyticsPolicy" href="/privacy"></a></p>
+        <div>
+          <button id="analyticsAllow" type="button"></button
+          ><button id="analyticsReject" type="button"></button>
+        </div>
+      </section>
+      <section class="intro">
+        <div>
+          <div class="eyebrow"><span data-i18n="YOUR FIRST HYROX">YOUR FIRST HYROX</span></div>
+          <h1><span data-i18n="Your first HYROX race.">Your first HYROX race.</span></h1>
+        </div>
+        <p>
+          <span data-i18n="Hold to move. Release to pause.">Hold to move. Release to pause.</span>
+        </p>
+      </section>
+      <section class="division-bar" aria-label="Race division" data-i18n-aria-label="Race division">
+        <div class="division-choice">
+          <label for="division"
+            ><span data-i18n="YOUR DIVISION">YOUR DIVISION</span>
+            <span><span data-i18n="OPEN · SEASON 26/27">OPEN · SEASON 26/27</span></span></label
+          ><select id="division">
+            <option value="men-single" data-i18n="Men Single">Men Single</option>
+            <option value="women-single" data-i18n="Women Single">Women Single</option>
+            <option value="mixed-doubles" data-i18n="Mixed Doubles">Mixed Doubles</option>
+            <option value="women-doubles" data-i18n="Women Doubles">Women Doubles</option>
+            <option value="men-doubles" data-i18n="Men Doubles">Men Doubles</option>
+          </select>
+        </div>
+        <div class="role-choice" id="roleChoice" hidden>
+          <label for="role"><span data-i18n="YOUR ROLE">YOUR ROLE</span></label
+          ><select id="role">
+            <option value="male" data-i18n="Male athlete">Male athlete</option>
+            <option value="female" data-i18n="Female athlete">Female athlete</option>
+          </select>
+        </div>
+        <p id="divisionNote">
+          <span data-i18n="Solo: every run and workout is yours."
+            >Solo: every run and workout is yours.</span
+          >
+        </p>
+        <span class="division-reset"
+          ><span data-i18n="Changing division restarts the experience."
+            >Changing division restarts the experience.</span
+          ></span
+        >
+      </section>
+      <div class="workspace">
+        <aside class="course">
+          <div class="course-head">
+            <span><span data-i18n="RACE ORDER">RACE ORDER</span></span
+            ><span class="small-tag"><span data-i18n="8 STATIONS">8 STATIONS</span></span>
+          </div>
+          <div class="course-start">
+            <span class="start-mark"></span><span data-i18n="START">START</span>
+            <span><span data-i18n="1 km RUN BEFORE EACH">1 km RUN BEFORE EACH</span></span>
+          </div>
+          <nav
+            id="stations"
+            aria-label="Select a station"
+            data-i18n-aria-label="Select a station"
+          ></nav>
+          <div class="course-finish">
+            <span><span data-i18n="FINISH">FINISH</span></span
+            ><span id="courseCount">0 / 8 COMPLETE</span>
+          </div>
+          <div class="course-foot">
+            <span data-i18n="Select a station to start from its run."
+              >Select a station to start from its run.</span
+            >
+          </div>
+        </aside>
+        <section
+          class="experience"
+          id="experience"
+          aria-label="First-person HYROX experience"
+          data-i18n-aria-label="First-person HYROX experience"
+        >
+          <div class="scene-toolbar">
+            <div class="live-state">
+              <span id="stateDot"></span
+              ><span id="stateLabel"><span data-i18n="READY">READY</span></span
+              ><span class="divider"></span
+              ><span><span data-i18n="ATHLETE VIEW">ATHLETE VIEW</span></span>
+            </div>
+            <div class="scene-tools">
+              <button id="focus" aria-pressed="false">
+                <span data-i18n="Focus view">Focus view</span></button
+              ><button
+                id="motion"
+                aria-pressed="false"
+                title="Reduce camera movement"
+                data-i18n-title="Reduce camera movement"
+              >
+                <span data-i18n="Reduce motion">Reduce motion</span></button
+              ><button
+                id="reset"
+                aria-label="Restart the race"
+                data-i18n-aria-label="Restart the race"
+              >
+                ↻ <span><span data-i18n="Restart">Restart</span></span>
+              </button>
+            </div>
+          </div>
+          <div
+            class="arena"
+            id="arena"
+            tabindex="0"
+            role="group"
+            aria-label="Press and hold to move through the race. Release to pause."
+            data-i18n-aria-label="Press and hold to move through the race. Release to pause."
+          >
+            <canvas
+              id="scene"
+              aria-label="Abstract rectangular 3D arena"
+              data-i18n-aria-label="Abstract rectangular 3D arena"
+            ></canvas>
+            <div class="scene-shade"></div>
+            <div class="hud-top">
+              <div>
+                <div class="hud-label" id="phaseLabel">RUN 01 / 08</div>
+                <h2 id="sceneTitle">Run 01</h2>
+                <div class="scene-caption" id="sceneCaption">Next: SkiErg</div>
+              </div>
+              <div class="distance">
+                <strong id="distance">0</strong><span id="distanceUnit">/ 1,000 m</span>
+              </div>
+            </div>
+            <div class="team-badge" id="teamBadge" hidden></div>
+            <div class="crosshair" aria-hidden="true"></div>
+            <div class="scene-callout" id="callout">
+              <span class="mouse-icon" aria-hidden="true"></span
+              ><strong id="calloutTitle"
+                ><span data-i18n="Your race starts with a hold."
+                  >Your race starts with a hold.</span
+                ></strong
+              ><span id="calloutText"
+                ><span data-i18n="Press and hold the arena or the button. Release to pause."
+                  >Press and hold the arena or the button. Release to pause.</span
+                ></span
+              >
+            </div>
+            <div class="minimap">
+              <svg
+                viewBox="0 0 140 100"
+                aria-label="Your current location in the arena"
+                data-i18n-aria-label="Your current location in the arena"
+              >
+                <rect x="13" y="13" width="114" height="74" rx="6" class="map-track" />
+                <rect x="29" y="29" width="82" height="42" rx="2" class="map-center" />
+                <text x="70" y="55" text-anchor="middle" data-i18n="ROXZONE">ROXZONE</text>
+                <circle id="mapDot" cx="13" cy="87" r="5" /></svg
+              ><span><span data-i18n="ARENA MAP">ARENA MAP</span></span>
+            </div>
+            <div class="hud-bottom">
+              <span id="motionLabel"><span data-i18n="HOLD TO MOVE">HOLD TO MOVE</span></span
+              ><span
+                ><span data-i18n="Accelerated learning experience · about 4 min"
+                  >Accelerated learning experience · about 4 min</span
+                ></span
+              >
+            </div>
+            <div class="completion" id="completion" hidden>
+              <span class="finish-kicker" id="finishKicker"
+                ><span data-i18n="ALL EIGHT. ALL YOU.">ALL EIGHT. ALL YOU.</span></span
+              >
+              <h2 id="finishTitle">
+                <span data-i18n="You are a finisher.">You are a finisher.</span>
+              </h2>
+              <p>
+                <span data-i18n="Eight runs. Eight workouts.">Eight runs. Eight workouts.</span
+                ><br /><span data-i18n="Now you know what comes next."
+                  >Now you know what comes next.</span
+                >
+              </p>
+              <div class="completion-actions">
+                <button id="again"><span data-i18n="Race again">Race again</span></button
+                ><button id="share" type="button" class="secondary">
+                  <span data-i18n="Share your finish">Share your finish</span>
+                </button>
+              </div>
+              <span
+                ><span data-i18n="Experience times are not real race results."
+                  >Experience times are not real race results.</span
+                ></span
+              >
+            </div>
+          </div>
+          <div class="progress-track"><div id="progressFill"></div></div>
+          <div class="play-controls" id="playControls">
+            <button class="hold-button" id="hold">
+              <span class="hold-icon" aria-hidden="true">Ⅱ</span
+              ><span id="holdText"><span data-i18n="Hold to move">Hold to move</span></span
+              ><span class="keycap" data-i18n="SPACE">SPACE</span></button
+            ><button id="skipRun"><span data-i18n="Skip run">Skip run</span></button>
+          </div>
+          <div class="control-bar">
+            <div class="current-info">
+              <span class="stage-number" id="stageNumber">01</span>
+              <div>
+                <div class="load-badge" id="currentLoad" hidden></div>
+                <div class="current-label" id="currentLabel">
+                  <span data-i18n="RUN · 1,000 m">RUN · 1,000 m</span>
+                </div>
+                <strong id="currentTitle">Running</strong>
+                <p id="currentTip">Start with a 1 km run, then enter the first workout zone.</p>
+              </div>
+            </div>
+          </div>
+          <div class="next-row">
+            <span id="nextText"
+              ><span data-i18n="UP NEXT">UP NEXT</span> <strong>01 SkiErg</strong>
+              <span>1,000 m</span></span
+            >
+            <div class="skip-actions">
+              <button id="skip"><span data-i18n="Next segment">Next segment</span></button>
+            </div>
+          </div>
+        </section>
+      </div>
+      <details class="selected-loads" id="selectedLoads">
+        <summary>
+          <span data-i18n="Your equipment loads">Your equipment loads</span>
+          <span><span data-i18n="Open · 26/27">Open · 26/27</span></span>
+        </summary>
+        <div
+          class="load-strip"
+          id="loadStrip"
+          aria-label="Selected division equipment loads"
+          data-i18n-aria-label="Selected division equipment loads"
+        ></div>
+      </details>
+      <details class="rules">
+        <summary>
+          <span data-i18n="Official Open loads · Season 26/27"
+            >Official Open loads · Season 26/27</span
+          >
+          <span><span data-i18n="Compare divisions">Compare divisions</span></span>
+        </summary>
+        <div class="rules-body">
+          <div class="table-scroll">
+            <table>
+              <caption>
+                <span data-i18n="All five divisions use the same distances and station order."
+                  >All five divisions use the same distances and station order.</span
+                >
+              </caption>
+              <thead>
+                <tr>
+                  <th><span data-i18n="Division">Division</span></th>
+                  <th><span data-i18n="Sled push">Sled push</span></th>
+                  <th><span data-i18n="Sled pull">Sled pull</span></th>
+                  <th><span data-i18n="Farmers carry">Farmers carry</span></th>
+                  <th><span data-i18n="Sandbag">Sandbag</span></th>
+                  <th><span data-i18n="Wall ball">Wall ball</span></th>
+                </tr>
+              </thead>
+              <tbody id="loadTable"></tbody>
+            </table>
+          </div>
+          <p>
+            <span
+              data-i18n="Sled weights include the sled. Carry weights are per kettlebell (two kettlebells). Wall-ball targets: women 2.70 m, men 3.00 m. Mixed Doubles uses a 6 kg ball for both athletes, with each athlete&#x27;s own target height."
+              >Sled weights include the sled. Carry weights are per kettlebell (two kettlebells).
+              Wall-ball targets: women 2.70 m, men 3.00 m. Mixed Doubles uses a 6 kg ball for both
+              athletes, with each athlete's own target height.</span
+            >
+          </p>
+          <p>
+            <span
+              data-i18n="Doubles: both athletes run every 1 km together, enter and exit stations together, and share the total workout distance or repetitions. One athlete works at a time. This demo uses a 50/50 split; real teams choose their split. During carries and lunges, the resting athlete follows behind."
+              >Doubles: both athletes run every 1 km together, enter and exit stations together, and
+              share the total workout distance or repetitions. One athlete works at a time. This
+              demo uses a 50/50 split; real teams choose their split. During carries and lunges, the
+              resting athlete follows behind.</span
+            >
+          </p>
+          <p>
+            <span
+              data-i18n="Open divisions only. Loads verified against the official 26/27 rulebooks on October 1, 2026."
+              >Open divisions only. Loads verified against the official 26/27 rulebooks on October
+              1, 2026.</span
+            >
+            <a
+              href="https://maintain.hyrox.com/rulebooks/HYROX_RulebookSingles_EN.pdf"
+              target="_blank"
+              rel="noopener"
+              ><span data-i18n="Singles rulebook">Singles rulebook</span></a
+            >
+            ·
+            <a
+              href="https://maintain.hyrox.com/rulebooks/HYROX_RulebookDoubles_EN.pdf"
+              target="_blank"
+              rel="noopener"
+              ><span data-i18n="Doubles rulebook">Doubles rulebook</span></a
+            >
+          </p>
+        </div>
+      </details>
+      <section class="race-note">
+        <div>
+          <span class="note-number">8 ×</span>
+          <p>
+            <strong><span data-i18n="1km RUN + 1 WORKOUT">1km RUN + 1 WORKOUT</span></strong
+            ><span
+              ><span data-i18n="The order stays the same. Weights vary by division."
+                >The order stays the same. Weights vary by division.</span
+              ></span
+            >
+          </p>
+        </div>
+        <p>
+          <span data-i18n="An unofficial introduction to the race sequence and movements."
+            >An unofficial introduction to the race sequence and movements.</span
+          ><br /><a href="https://hyrox.com/the-fitness-race/" target="_blank" rel="noopener"
+            ><span data-i18n="Official race guide">Official race guide</span></a
+          >
+        </p>
+      </section>
+    </main>
+    <footer>
+      <span
+        >FIRST LAP <span> / </span>
+        <span data-i18n="LEARN THE RACE. FEEL THE RHYTHM."
+          >LEARN THE RACE. FEEL THE RHYTHM.</span
+        ></span
+      ><span><span data-i18n="HYROX FIRST RACE EXPERIENCE">HYROX FIRST RACE EXPERIENCE</span></span
+      ><span class="footer-links"
+        ><a href="/privacy"><span data-i18n="Privacy policy">Privacy policy</span></a
+        ><button id="analyticsSettings" type="button" hidden></button
+        ><a class="footer-contact" href="mailto:leeseooo@sookmyung.ac.kr"
+          >leeseooo@sookmyung.ac.kr</a
+        ><a
+          class="footer-icon"
+          href="https://github.com/leeseooo"
+          target="_blank"
+          rel="noopener"
+          aria-label="GitHub @leeseooo"
+          title="GitHub @leeseooo"
+          ><svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true" focusable="false">
+            <path
+              fill="currentColor"
+              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+            /></svg></a
+      ></span>
+    </footer>
+    <div class="sr-only" role="status" aria-live="polite" id="announcement"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
