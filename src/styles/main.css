@@ -500,7 +500,7 @@ h2 {
 }
 .minimap text {
   fill: #666;
-  font: 9px Arial;
+  font: 10px Arial;
 }
 #mapDot {
   fill: #111;
@@ -1485,7 +1485,7 @@ html[lang='ko'] .team-badge {
   z-index: 50;
   left: 16px;
   right: 16px;
-  bottom: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   max-width: 760px;
   margin: 0 auto;
   background: #fff;
@@ -1515,6 +1515,11 @@ html[lang='ko'] .team-badge {
   align-items: center;
   flex-wrap: wrap;
   gap: 16px;
+}
+.footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 .footer-icon {
   display: inline-flex;
@@ -1552,6 +1557,12 @@ html[lang='ko'] .team-badge {
 }
 .focus-view .analytics-notice {
   display: none;
+}
+@media (max-width: 900px) {
+  /* Sit above the fixed hold controls instead of covering them. */
+  .analytics-notice {
+    bottom: calc(106px + env(safe-area-inset-bottom, 0px));
+  }
 }
 @media (max-width: 640px) {
   .analytics-notice {

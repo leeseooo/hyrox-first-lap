@@ -68,6 +68,7 @@ export const korean = {
   'Race again': '다시 체험하기',
   'Share your finish': '완주 공유하기',
   'Link copied.': '링크를 복사했어요.',
+  'Could not copy the link.': '링크를 복사하지 못했어요.',
   'I finished my first HYROX race on FIRST LAP.': 'FIRST LAP에서 첫 HYROX 레이스를 완주했어요.',
   'We finished our first HYROX race on FIRST LAP.':
     'FIRST LAP에서 팀으로 첫 HYROX 레이스를 완주했어요.',

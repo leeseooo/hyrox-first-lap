@@ -651,19 +651,43 @@ async function shareFinish() {
     }
   }
   if (!method) {
-    try {
-      await navigator.clipboard.writeText(`${text} ${shareLink('copy_link')}`);
-      method = 'copy_link';
-      $('announcement').textContent = tr('Link copied.');
-      // Swap the inner [data-i18n] label so a later language change still translates it.
-      const label = $('share').firstElementChild;
-      label.textContent = tr('Link copied.');
-      setTimeout(() => (label.textContent = tr('Share your finish')), 2000);
-    } catch {
-      return;
-    }
+    const copied = await copyText(`${text} ${shareLink('copy_link')}`);
+    flashShareLabel(copied ? 'Link copied.' : 'Could not copy the link.');
+    if (!copied) return;
+    method = 'copy_link';
   }
   track('share', metrics({ method, content_type: 'race_result', item_id: state.profile.id }));
+}
+// The async Clipboard API needs a secure context and, in some browsers, a permission;
+// fall back to the legacy selection copy before giving up.
+async function copyText(value) {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {}
+  const field = document.createElement('textarea');
+  field.value = value;
+  field.setAttribute('readonly', '');
+  field.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+  const previousFocus = document.activeElement;
+  document.body.append(field);
+  field.select();
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch {}
+  field.remove();
+  previousFocus?.focus?.();
+  return copied;
+}
+let shareLabelTimer;
+function flashShareLabel(message) {
+  $('announcement').textContent = tr(message);
+  // Swap the inner [data-i18n] label so a later language change still translates it.
+  const label = $('share').firstElementChild;
+  label.textContent = tr(message);
+  clearTimeout(shareLabelTimer);
+  shareLabelTimer = setTimeout(() => (label.textContent = tr('Share your finish')), 2000);
 }
 $('skip').onclick = () => {
   if (state.complete) return;
