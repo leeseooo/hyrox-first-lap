@@ -75,9 +75,10 @@ hyrox-first-lap/
 │   └── pull_request_template.md
 ├── docs/screenshots/         # README 이미지 (npm run screenshots)
 ├── public/
-│   └── _headers              # CSP · 보안 헤더 · 에셋 캐시 정책
+│   ├── _headers              # CSP · 보안 헤더 · 에셋 캐시 정책
+│   └── og.png                # 링크 미리보기 이미지 (1200×630)
 ├── scripts/
-│   └── screenshots.js        # 헤드리스 Chrome으로 README 이미지 생성
+│   └── screenshots.js        # 헤드리스 Chrome으로 README·OG 이미지 생성
 ├── src/
 │   ├── main.js               # 진입점, 레이스 상태 머신과 DOM 바인딩
 │   ├── webmcp.js             # WebMCP 도구 등록
@@ -115,7 +116,7 @@ npm run dev        # http://localhost:5173
 | `npm run preview`                 | 빌드 결과를 Cloudflare 런타임(`_headers` 포함)으로 실행 |
 | `npm test`                        | Vitest 단위 테스트                                      |
 | `npm run lint` / `npm run format` | ESLint / Prettier                                       |
-| `npm run screenshots`             | `npx vite preview` 실행 중에 README 이미지 갱신         |
+| `npm run screenshots`             | `npx vite preview` 실행 중에 README·OG 이미지 갱신      |
 
 ## 배포
 
