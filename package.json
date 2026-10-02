@@ -1,0 +1,32 @@
+{
+  "name": "hyrox-first-lap",
+  "private": true,
+  "version": "1.0.0",
+  "description": "First-person HYROX race experience for first-timers",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite build && wrangler pages dev dist",
+    "deploy": "vite build && wrangler pages deploy dist --branch main",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "screenshots": "node scripts/screenshots.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
+    "globals": "^17.13.0",
+    "playwright-core": "^1.63.0",
+    "prettier": "^3.9.9",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3",
+    "wrangler": "^4.146.0"
+  }
+}
