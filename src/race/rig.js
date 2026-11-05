@@ -21,6 +21,62 @@ export function multiply(a, b) {
   return c;
 }
 
+// Inverse of an affine matrix (rotation, scale and translation).
+export function invert(m) {
+  const [a, b, c, , d, e, f, , g, h, i] = m,
+    A = e * i - f * h,
+    B = c * h - b * i,
+    C = b * f - c * e,
+    det = a * A + d * B + g * C,
+    k = 1 / det,
+    r = [
+      A * k,
+      B * k,
+      C * k,
+      (f * g - d * i) * k,
+      (a * i - c * g) * k,
+      (c * d - a * f) * k,
+      (d * h - e * g) * k,
+      (b * g - a * h) * k,
+      (a * e - b * d) * k,
+    ],
+    t = [m[12], m[13], m[14]];
+  return new Float32Array([
+    r[0],
+    r[1],
+    r[2],
+    0,
+    r[3],
+    r[4],
+    r[5],
+    0,
+    r[6],
+    r[7],
+    r[8],
+    0,
+    -(r[0] * t[0] + r[3] * t[1] + r[6] * t[2]),
+    -(r[1] * t[0] + r[4] * t[1] + r[7] * t[2]),
+    -(r[2] * t[0] + r[5] * t[1] + r[8] * t[2]),
+    1,
+  ]);
+}
+
+// Drops joints no vertex uses so the bone uniforms fit the smallest WebGL limit.
+export function compactSkin(mesh) {
+  const used = new Set();
+  for (let i = 0; i < mesh.joints.length; i++) if (mesh.weights[i] > 0) used.add(mesh.joints[i]);
+  const order = [...used].sort((a, b) => a - b),
+    slot = new Map(order.map((j, i) => [j, i])),
+    joints = new Uint8Array(mesh.joints.length),
+    inverseBind = new Float32Array(order.length * 16);
+  for (let i = 0; i < joints.length; i++)
+    joints[i] = mesh.weights[i] > 0 ? slot.get(mesh.joints[i]) : 0;
+  order.forEach((j, i) =>
+    inverseBind.set(mesh.skin.inverseBind.subarray(j * 16, j * 16 + 16), i * 16),
+  );
+  return { ...mesh, joints, skin: { joints: order.map((j) => mesh.skin.joints[j]), inverseBind } };
+}
+
 export function compose(t, q, s) {
   const [x, y, z, w] = q;
   return new Float32Array([
@@ -126,7 +182,8 @@ export function armRig(mesh) {
   const globals = restGlobals(mesh.nodes),
     joint = (name) => mesh.skin.joints.findIndex((n) => mesh.nodes[n].name === name);
   const sides = ['Left', 'Right'].map((side, j) => {
-    const ids = ['Arm', 'ForeArm', 'Hand'].map((part) => joint(side + part));
+    const ids = ['Arm', 'ForeArm', 'Hand'].map((part) => joint(side + part)),
+      fingers = ['Fingers', 'FingerTips'].map((part) => joint(side + part));
     if (ids.some((id) => id < 0)) throw new Error(`Missing ${side} arm bones`);
     const [arm, fore, hand] = ids.map((id) => globals[mesh.skin.joints[id]]),
       shoulder = head(arm),
@@ -153,8 +210,18 @@ export function armRig(mesh) {
       // In the rest A-pose the palms face the thighs (left hand sits on +x).
       inward = [j === 0 ? -1 : 1, 0, 0],
       palm = normalize(sub(inward, scale(handAxis, dot(inward, handAxis))));
+    const node = (id) => mesh.skin.joints[id];
     return {
       ids,
+      // Optional finger bones (base, tips) and where they sit relative to their parent.
+      fingers: fingers.every((id) => id >= 0) ? fingers : null,
+      fingerOffsets: fingers.every((id) => id >= 0)
+        ? [
+            multiply(invert(hand), globals[node(fingers[0])]),
+            multiply(invert(globals[node(fingers[0])]), globals[node(fingers[1])]),
+          ]
+        : null,
+      across: normalize(cross(handAxis, palm)),
       upper: length(sub(elbow, shoulder)),
       lower: length(sub(wrist, elbow)),
       reach: length(sub(centre, wrist)),
@@ -171,7 +238,11 @@ function signedAngle(from, to, axis) {
   return Math.atan2(dot(cross(from, to), axis), dot(from, to));
 }
 
-// targets[j] = { shoulder, elbow (pole hint), hand (palm centre), palm (normal) } in model space.
+// How far the two finger bones bend (radians) for a full grip.
+const FIST = [1.25, 1.35];
+
+// targets[j] = { shoulder, elbow (pole hint), hand (palm centre), palm (normal), grip 0..1 }
+// in model space.
 export function poseArms(rig, mesh, targets) {
   const posed = rig.globals.slice();
   rig.sides.forEach((side, j) => {
@@ -195,11 +266,19 @@ export function poseArms(rig, mesh, targets) {
       t.shoulder,
     );
     posed[foreJoint] = place(rig.globals[foreJoint], foreRotation, elbow);
-    posed[handJoint] = place(
-      rig.globals[handJoint],
-      quatMultiply(axisAngle(forearm, twist), alignHand),
-      wrist,
-    );
+    const handRotation = quatMultiply(axisAngle(forearm, twist), alignHand);
+    posed[handJoint] = place(rig.globals[handJoint], handRotation, wrist);
+    if (side.fingers) {
+      // Turning about the knuckle axis (a x palm) by a positive angle closes the fingers.
+      const across = rotate(handRotation, side.across),
+        grip = Math.max(0, Math.min(1, t.grip || 0));
+      let parent = posed[handJoint];
+      side.fingers.forEach((id, k) => {
+        const open = multiply(parent, side.fingerOffsets[k]);
+        parent = place(open, axisAngle(across, FIST[k] * grip), head(open));
+        posed[mesh.skin.joints[id]] = parent;
+      });
+    }
   });
   const matrices = new Float32Array(rig.count * 16);
   mesh.skin.joints.forEach((node, j) =>

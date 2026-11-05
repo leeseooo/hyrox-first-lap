@@ -1,6 +1,6 @@
 // First-person athlete arms: a skinned, textured GLB posed from the procedural hand targets.
 import { readSkinnedMesh } from './gltf.js';
-import { armRig, poseArms, vec } from './rig.js';
+import { armRig, compactSkin, poseArms, vec } from './rig.js';
 
 const vertex = (bones) =>
   `attribute vec3 position;attribute vec3 normal;attribute vec2 uv;attribute vec4 joint;attribute vec4 weight;uniform mat4 matrix;uniform mat4 model;uniform mat4 bones[${bones}];varying vec3 world;varying vec3 surface;varying vec2 texel;void main(){mat4 skin=weight.x*bones[int(joint.x)]+weight.y*bones[int(joint.y)]+weight.z*bones[int(joint.z)]+weight.w*bones[int(joint.w)];vec4 w=model*skin*vec4(position,1.);world=w.xyz;surface=(model*skin*vec4(normal,0.)).xyz;texel=uv;gl_Position=matrix*w;}`;
@@ -30,7 +30,7 @@ export class AthleteArms {
         if (!r.ok) throw new Error(`arms ${r.status}`);
         return r.arrayBuffer();
       })
-      .then((buffer) => this.build(entry, readSkinnedMesh(buffer)))
+      .then((buffer) => this.build(entry, compactSkin(readSkinnedMesh(buffer))))
       .catch(() => (entry.failed = true));
     return entry;
   }
@@ -114,7 +114,7 @@ export class AthleteArms {
       ready: true,
     });
   }
-  // pose: { root, yaw, shoulders, elbows, hands, palms } in world space (index 0 = left arm).
+  // pose: { root, yaw, shoulders, elbows, hands, palms, grip } in world space (index 0 = left arm).
   draw(sex, viewProjection, eye, pose) {
     const entry = this.load(sex);
     if (!entry.ready) return false;
@@ -135,6 +135,7 @@ export class AthleteArms {
       elbow: toModel(pose.elbows[j]),
       hand: toModel(pose.hands[j]),
       palm: vec.normalize(dirToModel(pose.palms[j])),
+      grip: pose.grip,
     }));
     const bones = poseArms(entry.rig, entry.mesh, targets),
       model = new Float32Array([c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, ...pose.root, 1]);

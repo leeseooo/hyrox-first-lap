@@ -161,7 +161,7 @@ flowchart LR
 ## 에셋
 
 1인칭 팔은 Grab3D의 [Man Base Mesh](https://grab3d.com/models/characters/man-base-character/)와
-[Woman Base Mesh](https://grab3d.com/models/characters/woman-base-character/)(CC0)에서 팔만 잘라 면 6천 개로 줄인 것입니다.
+[Woman Base Mesh](https://grab3d.com/models/characters/woman-base-character/)(CC0)에서 팔만 잘라 면 6천 개로 줄이고, 주먹을 쥘 수 있게 손가락 관절을 더한 것입니다.
 다시 만들 때는 원본 rigged GLB를 받아 `blender -b --python scripts/bake-arms.py -- <원본.glb> public/models/arms-male.glb`를 실행합니다.
 
 ## 면책

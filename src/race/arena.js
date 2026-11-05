@@ -1445,6 +1445,7 @@ export class ArenaRenderer {
       ),
       hands: sides.map((_, j) => this.worldPoint(pose, pose.hands[j])),
       palms: sides.map((side) => turn([-side * palm[0], palm[1], palm[2]])),
+      grip: gripFor(pose),
     });
   }
 }
@@ -1460,6 +1461,13 @@ const PALMS = [
   [0.4, 0.3, -0.85],
   [0.5, 0.2, -0.85],
 ];
+// How tightly the hands close per station: handles and bells are gripped, pushes stay open.
+const GRIPS = [0.85, 0.15, 0.85, 0.1, 0.85, 0.9, 0.6, 0.25];
+function gripFor(pose) {
+  if (pose.celebrating) return 0.1;
+  if (pose.run || pose.travel || pose.watching) return 0.45;
+  return GRIPS[pose.index] ?? 0.45;
+}
 function palmFor(pose) {
   if (pose.celebrating) return [0.3, 0, -1];
   if (pose.run || pose.travel || pose.watching) return [1, -0.2, 0];
