@@ -239,6 +239,39 @@ export const korean = {
   'HYROX FIRST RACE EXPERIENCE': '하이록스 첫 레이스 체험',
   'You crossed the finish line. All eight stations complete!':
     '피니시라인을 통과했습니다. 8개 종목 모두 완료!',
+  'Hold to push. Release to breathe.': '누르면 밀고, 떼면 숨 고르기.',
+  'Hold to speed up through the race. Release to breathe.':
+    '누르고 있으면 속도가 오르고, 떼면 숨을 고릅니다.',
+  'Hold the arena, the button, or Space to speed up. Release to breathe. Keep your heart rate out of the red.':
+    '경기장 · 버튼 · 스페이스바를 누르고 있으면 속도가 오르고, 떼면 숨을 고릅니다. 심박이 빨간 구간에 닿지 않게 조절하세요.',
+  'Hold to speed up, release to breathe. Keep your heart rate out of the red.':
+    '누르고 있으면 속도가 오르고, 떼면 숨을 고릅니다. 심박이 빨간 구간에 닿지 않게 조절하세요.',
+  'Hold to speed up': '눌러서 속도 올리기',
+  'HOLD TO SPEED UP': '눌러서 속도 올리기',
+  'Release to breathe': '떼면 숨 고르기',
+  'Blown up — breathe': '퍼짐 — 숨 고르기',
+  'Teammate is working': '팀원이 운동 중',
+  'BLOWN UP · BREATHE UNTIL YOUR HEART RATE DROPS': '퍼졌어요 · 심박이 내려갈 때까지 숨 고르기',
+  'You blew up. Ease off until your heart rate drops.':
+    '퍼졌어요. 심박이 내려갈 때까지 숨을 고르세요.',
+  PUSHING: '미는 중',
+  EASING: '숨 고르는 중',
+  'BLOWN UP': '퍼짐',
+  'Race paused.': '레이스가 멈췄어요.',
+  'Accelerated learning experience · about 6 min': '압축한 경기 체험 · 약 6분',
+  'HEART RATE': '심박',
+  'Heart rate': '심박',
+  Steady: '안정',
+  'Near the limit': '한계 근접',
+  'Red line': '위험',
+  'RACE TIME': '대회 환산',
+  'Played in': '플레이',
+  'BLOW-UPS': '퍼짐',
+  BEST: '최고 기록',
+  PRACTICE: '연습',
+  'New personal best!': '개인 최고 기록!',
+  'Practice finish — skips do not count. Race again without skipping to set a time.':
+    '연습 완주예요. 건너뛰기를 쓴 판은 기록이 남지 않아요. 건너뛰지 않고 다시 달려 보세요.',
 };
 let language = 'en';
 export function initialLanguage() {
@@ -265,7 +298,12 @@ export function tr(value) {
   if (korean[text]) return korean[text];
   const suffix = ' Your teammate completes the second half while you stay with them.';
   if (text.endsWith(suffix)) return tr(text.slice(0, -suffix.length)) + ' ' + tr(suffix.trim());
-  let m = text.match(/^Run (\d{2})$/);
+  let m = text.match(
+    /^(I|We) finished FIRST LAP with a race time of (\d+:\d{2}:\d{2})\. Can you pace it better\?$/,
+  );
+  if (m)
+    return `${m[1] === 'We' ? '우리 팀이 ' : ''}FIRST LAP 하이록스 체험을 대회 환산 ${m[2]}에 완주했어요. 페이스 조절, 더 잘할 수 있나요?`;
+  m = text.match(/^Run (\d{2})$/);
   if (m) return `달리기 ${m[1]}`;
   m = text.match(/^(Into|Teammate:|Next:) (.+)$/);
   if (m)

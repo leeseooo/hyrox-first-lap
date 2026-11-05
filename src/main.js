@@ -19,6 +19,10 @@ import {
 import { divisions, makeProfile, stationLoad } from './data/divisions.js';
 import { stations } from './data/stations.js';
 import { registerWebMcpTools } from './webmcp.js';
+import { segmentFor } from './race/course.js';
+import { createPacing, stepPacing } from './race/pacing.js';
+import { formatRaceClock, formatRaceTime, loadBest, saveIfBest } from './race/record.js';
+import { heartRate, strainLevel } from './race/strain.js';
 const $ = (id) => document.getElementById(id);
 setLocale(initialLanguage());
 applyStaticLanguage();
@@ -31,7 +35,13 @@ const state = {
   started: false,
   complete: false,
   time: 0,
+  // Race clock: starts on the first hold, stops at the finish line, keeps running on release.
+  raceTime: 0,
   phaseTime: 0,
+  paused: false,
+  sim: createPacing(),
+  // { phase, mode, t } at the end of every clocked segment — the ghost race (C) replays these.
+  splits: [],
   route: null,
   reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
   done: new Set(),
@@ -40,7 +50,8 @@ const state = {
 let attemptStarted = false,
   attemptAssisted = false,
   attemptFinished = false,
-  attemptNumber = 1;
+  attemptNumber = 1,
+  lastResult = null;
 const measuredStations = new Set();
 function metrics(extra = {}) {
   return {
@@ -61,6 +72,9 @@ let input = null,
   contextLost = false;
 const touchScreen = matchMedia('(pointer: coarse)').matches;
 const index = () => Math.min(7, Math.floor(state.phase / 2));
+const segment = () => segmentFor(state.mode, index(), state.profile.doubles);
+// After the first hold the race keeps moving until the finish, unless the tab is out of sight.
+const running = () => state.started && !state.paused && !state.complete;
 const nav = $('stations');
 stations.forEach((s, i) => {
   const b = document.createElement('button');
@@ -92,7 +106,15 @@ function start(source) {
   }
   state.active = true;
   state.started = true;
+  state.paused = false;
   input = source;
+  updateControl();
+}
+// Freeze the clock, heart rate and pace while the race is out of sight.
+function pause() {
+  stop();
+  if (!running()) return;
+  state.paused = true;
   updateControl();
 }
 function selectPhase(p, internal = false) {
@@ -110,6 +132,7 @@ function selectPhase(p, internal = false) {
   state.route = null;
   state.complete = false;
   state.started = false;
+  state.paused = false;
   $('completion').hidden = true;
   renderer?.setStage(p);
   lastDisplay = -1;
@@ -166,6 +189,50 @@ function finishStation() {
       [-44, 26],
     ]);
   }
+}
+function browserStorage() {
+  try {
+    return localStorage;
+  } catch {
+    return null;
+  }
+}
+// Practice runs (any skip or station jump) finish without a time or a personal best.
+function finishRace() {
+  const storage = browserStorage(),
+    { id } = state.profile,
+    practice = attemptAssisted,
+    time = state.raceTime,
+    blowups = state.sim.blowups;
+  let isBest = false,
+    best = loadBest(storage, id)?.time ?? null;
+  if (!practice) {
+    isBest = saveIfBest(storage, id, {
+      time,
+      blowups,
+      splits: state.splits,
+      date: new Date().toISOString().slice(0, 10),
+    }).isBest;
+    if (isBest) best = time;
+  }
+  lastResult = { practice, time, blowups, isBest, best };
+  renderResult();
+  return lastResult;
+}
+function renderResult() {
+  if (!lastResult) return;
+  const { practice, time, blowups, isBest, best } = lastResult;
+  $('finishTime').textContent = practice ? tr('PRACTICE') : formatRaceClock(time);
+  $('finishPlay').hidden = practice;
+  $('finishPlay').textContent = `${tr('Played in')} ${formatRaceTime(time)}`;
+  $('finishBlowups').textContent = String(blowups);
+  $('finishBest').textContent = best === null ? '—' : formatRaceClock(best);
+  $('finishRecord').hidden = !practice && !isBest;
+  $('finishRecord').textContent = tr(
+    practice
+      ? 'Practice finish — skips do not count. Race again without skipping to set a time.'
+      : 'New personal best!',
+  );
 }
 function advance() {
   if (state.mode === 'run') {
@@ -228,9 +295,22 @@ function advance() {
     state.progress = 1;
     state.mode = 'complete';
     state.complete = true;
+    const result = finishRace();
     if (!attemptFinished) {
       attemptFinished = true;
-      track('race_complete', metrics({ completed_stations: state.done.size }));
+      track(
+        'race_complete',
+        metrics({
+          completed_stations: state.done.size,
+          blowups: result.blowups,
+          ...(result.practice
+            ? {}
+            : {
+                race_time_s: Math.round(result.time * 10) / 10,
+                personal_best: result.isBest ? 1 : 0,
+              }),
+        }),
+      );
       if (!attemptAssisted && state.done.size === 8) track('race_complete_full', metrics());
     }
     stop();
@@ -250,53 +330,68 @@ function updateControl() {
     s = stations[index()];
   $('hold').classList.toggle('held', state.active);
   $('holdText').textContent = tr(
-    state.complete
+    state.complete || mode === 'celebrate'
       ? 'Race complete'
-      : state.active
-        ? 'Release to pause'
+      : state.sim.blown
+        ? 'Blown up — breathe'
         : mode === 'partner'
-          ? 'Hold to watch teammate'
-          : mode === 'handoff'
-            ? 'Hold to swap'
+          ? 'Teammate is working'
+          : state.active
+            ? 'Release to breathe'
             : mode === 'workout'
               ? `Hold to ${s.verb}`
-              : mode === 'celebrate'
-                ? 'Hold to celebrate'
-                : 'Hold to move',
+              : 'Hold to speed up',
   );
   $('stateLabel').textContent = tr(
-    state.complete ? 'FINISHED' : state.active ? 'IN MOTION' : state.started ? 'PAUSED' : 'READY',
+    state.complete
+      ? 'FINISHED'
+      : state.paused
+        ? 'PAUSED'
+        : !state.started
+          ? 'READY'
+          : state.sim.blown
+            ? 'BLOWN UP'
+            : state.active
+              ? 'PUSHING'
+              : 'EASING',
   );
-  $('stateDot').classList.toggle('moving', state.active);
-  $('callout').style.opacity = state.active || state.complete ? '0' : '1';
+  $('stateDot').classList.toggle('moving', running());
+  const waiting = !state.complete && (!state.started || state.paused);
+  $('callout').style.opacity = waiting ? '1' : '0';
   $('calloutTitle').textContent = tr(
-    state.started ? 'Take a breath. Then keep going.' : 'Your race starts with a hold.',
+    state.paused
+      ? 'Race paused.'
+      : attemptStarted
+        ? 'Take a breath. Then keep going.'
+        : 'Your race starts with a hold.',
   );
   $('calloutText').textContent = tr(
-    state.started
+    state.paused || attemptStarted
       ? 'Hold again to pick up where you paused.'
       : touchScreen
-        ? 'Press and hold the arena or the button. Release to pause.'
-        : 'Hold the arena, the button, or Space. Release to pause.',
+        ? 'Hold to speed up, release to breathe. Keep your heart rate out of the red.'
+        : 'Hold the arena, the button, or Space to speed up. Release to breathe. Keep your heart rate out of the red.',
   );
   $('motionLabel').textContent = tr(
-    state.active
-      ? mode === 'partner'
-        ? 'YOUR TEAMMATE IS WORKING · STAY TOGETHER'
-        : mode === 'handoff'
-          ? 'YOUR HALF IS DONE · SWAP WITH YOUR TEAMMATE'
-          : mode === 'workout'
-            ? s.cue
-            : mode === 'celebrate'
-              ? 'ARMS UP. YOU DID IT.'
-              : mode === 'enter'
-                ? 'FOLLOW THE ROUTE INTO THE ROXZONE'
-                : mode === 'exit'
-                  ? 'BACK TO THE RUNNING TRACK'
-                  : mode === 'finish'
-                    ? 'THROUGH THE FINISH ARCH'
-                    : 'FIND YOUR RUNNING RHYTHM'
-      : 'HOLD TO MOVE',
+    state.sim.blown
+      ? 'BLOWN UP · BREATHE UNTIL YOUR HEART RATE DROPS'
+      : running()
+        ? mode === 'partner'
+          ? 'YOUR TEAMMATE IS WORKING · STAY TOGETHER'
+          : mode === 'handoff'
+            ? 'YOUR HALF IS DONE · SWAP WITH YOUR TEAMMATE'
+            : mode === 'workout'
+              ? s.cue
+              : mode === 'celebrate'
+                ? 'ARMS UP. YOU DID IT.'
+                : mode === 'enter'
+                  ? 'FOLLOW THE ROUTE INTO THE ROXZONE'
+                  : mode === 'exit'
+                    ? 'BACK TO THE RUNNING TRACK'
+                    : mode === 'finish'
+                      ? 'THROUGH THE FINISH ARCH'
+                      : 'FIND YOUR RUNNING RHYTHM'
+        : 'HOLD TO SPEED UP',
   );
   $('hold').disabled = state.complete || !renderer;
   $('skip').disabled = state.complete;
@@ -423,6 +518,33 @@ function update() {
   updateControl();
   updateProgress();
 }
+let shownPercent = -1,
+  shownBeat = 0;
+function updateStrain() {
+  const { effort, blown } = state.sim,
+    percent = Math.round(effort * 100),
+    bpm = heartRate(effort),
+    arena = $('arena');
+  $('raceClock').textContent = formatRaceClock(state.raceTime);
+  arena.style.setProperty('--strain', strainLevel(effort).toFixed(3));
+  arena.classList.toggle('blown', blown);
+  // Restarting the pulse animation every frame would stutter; step it every 5 bpm.
+  const beat = Math.round(bpm / 5) * 5;
+  if (beat !== shownBeat) {
+    shownBeat = beat;
+    arena.style.setProperty('--beat', `${(60 / beat).toFixed(3)}s`);
+  }
+  if (percent === shownPercent) return;
+  shownPercent = percent;
+  const zone = effort >= 0.9 ? 'Red line' : effort >= 0.7 ? 'Near the limit' : 'Steady',
+    meter = $('effort');
+  meter.dataset.zone = effort >= 0.9 ? 'danger' : effort >= 0.7 ? 'edge' : 'steady';
+  meter.setAttribute('aria-valuenow', String(percent));
+  meter.setAttribute('aria-valuetext', `${tr('Heart rate')} ${percent}% · ${tr(zone)}`);
+  $('effortFill').style.width = `${percent}%`;
+  $('effortBpm').textContent = String(bpm);
+  $('effortZone').textContent = tr(zone);
+}
 function updateProgress() {
   const s = stations[index()],
     travel = ['enter', 'exit', 'finish', 'handoff'].includes(state.mode),
@@ -488,15 +610,15 @@ bindRaceKeyboard({
     if (focusMode) toggleFocus();
   },
 });
-window.addEventListener('blur', stop);
-window.addEventListener('pagehide', stop);
+window.addEventListener('blur', pause);
+window.addEventListener('pagehide', pause);
 window.addEventListener('resize', () => {
   stop();
   last = 0;
   renderDirty = true;
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) stop();
+  if (document.hidden) pause();
   last = 0;
   renderDirty = true;
 });
@@ -513,7 +635,7 @@ $('focus').onclick = toggleFocus;
 $('scene').addEventListener('webglcontextlost', (e) => {
   e.preventDefault();
   contextLost = true;
-  stop();
+  pause();
 });
 $('scene').addEventListener('webglcontextrestored', () => {
   const savedEquipment = renderer?.settled ? new Map(renderer.settled) : new Map();
@@ -540,8 +662,13 @@ function reset() {
   measuredStations.clear();
   state.done.clear();
   state.time = 0;
+  state.raceTime = 0;
+  state.sim = createPacing();
+  state.splits = [];
+  lastResult = null;
   renderer?.clearEquipment();
   selectPhase(0, true);
+  updateStrain();
 }
 function setDivision(id, role = $('role').value) {
   state.profile = makeProfile(id, role);
@@ -607,6 +734,9 @@ function setLanguage(value) {
   updateDivision();
   lastDisplay = -1;
   update();
+  shownPercent = -1;
+  updateStrain();
+  renderResult();
   return getLanguage();
 }
 $('language').onchange = () => setLanguage($('language').value);
@@ -636,11 +766,14 @@ function shareLink(medium) {
   return url.href;
 }
 async function shareFinish() {
-  const text = tr(
-    state.profile.doubles
-      ? 'We finished our first HYROX race on FIRST LAP.'
-      : 'I finished my first HYROX race on FIRST LAP.',
-  );
+  const timed = lastResult && !lastResult.practice,
+    text = tr(
+      timed
+        ? `${state.profile.doubles ? 'We' : 'I'} finished FIRST LAP with a race time of ${formatRaceClock(lastResult.time)}. Can you pace it better?`
+        : state.profile.doubles
+          ? 'We finished our first HYROX race on FIRST LAP.'
+          : 'I finished my first HYROX race on FIRST LAP.',
+    );
   let method;
   if (navigator.share) {
     try {
@@ -706,42 +839,45 @@ $('motion').onclick = () => {
 };
 function updateMotion() {
   $('motion').setAttribute('aria-pressed', String(state.reduced));
+  $('arena').classList.toggle('reduced-motion', state.reduced);
   $('motion').textContent = tr(state.reduced ? 'Motion: low' : 'Motion: full');
   renderDirty = true;
 }
 updateMotion();
 function duration() {
-  return state.mode === 'run'
-    ? 9
-    : ['workout', 'partner'].includes(state.mode)
-      ? stations[index()].duration * (state.profile.doubles ? 0.5 : 1)
-      : state.mode === 'handoff'
-        ? 2.5
-        : state.mode === 'enter'
-          ? 4
-          : state.mode === 'exit'
-            ? 4
-            : state.mode === 'finish'
-              ? 6
-              : 3;
+  return segment().length;
 }
 function frame(t) {
   const dt = last ? Math.min((t - last) / 1000, 0.05) : 0;
   last = t;
-  if (state.active) {
+  const moving = running();
+  if (moving) {
+    const seg = segment(),
+      wasBlown = state.sim.blown;
+    state.sim = stepPacing(state.sim, { holding: state.active, segment: seg, dt });
     state.time += dt;
-    state.phaseTime += dt;
-    const segmentProgress = Math.min(1, state.phaseTime / duration());
+    if (seg.clock) state.raceTime += dt;
+    state.phaseTime += dt * state.sim.pace;
+    const segmentProgress = Math.min(1, state.phaseTime / seg.length);
     state.progress =
       state.mode === 'partner'
         ? 0.5 + segmentProgress * 0.5
         : state.mode === 'workout' && state.profile.doubles
           ? segmentProgress * 0.5
           : segmentProgress;
-    if (segmentProgress >= 1) advance();
+    if (state.sim.blown !== wasBlown) {
+      if (state.sim.blown)
+        $('announcement').textContent = tr('You blew up. Ease off until your heart rate drops.');
+      updateControl();
+    }
+    if (segmentProgress >= 1) {
+      if (seg.clock) state.splits.push({ phase: state.phase, mode: state.mode, t: state.raceTime });
+      advance();
+    }
     updateProgress();
+    updateStrain();
   }
-  if (renderer && !contextLost && (state.active || renderDirty || renderer.dirty)) {
+  if (renderer && !contextLost && (moving || renderDirty || renderer.dirty)) {
     renderer.render(state);
     renderDirty = false;
     renderer.dirty = false;
@@ -752,6 +888,7 @@ renderer?.configureDivision(state.profile);
 initAnalytics();
 updateDivision();
 selectPhase(0, true);
+updateStrain();
 requestAnimationFrame(frame);
 window.hyrox = {
   getState: () => ({
@@ -762,6 +899,13 @@ window.hyrox = {
     active: state.active,
     complete: state.complete,
     completedStations: state.done.size,
+    raceTime: state.raceTime,
+    raceClock: formatRaceClock(state.raceTime),
+    paused: state.paused,
+    effort: state.sim.effort,
+    pace: state.sim.pace,
+    blown: state.sim.blown,
+    blowups: state.sim.blowups,
     division: state.profile.id,
     language: getLanguage(),
     role: state.profile.playerSex,
