@@ -554,6 +554,7 @@ h2 {
 }
 .play-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   padding: 16px 20px 0;
 }
@@ -945,7 +946,7 @@ body.focus-view {
 }
 @media (max-width: 900px) {
   body {
-    padding-bottom: calc(94px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(122px + env(safe-area-inset-bottom, 0px));
   }
   .masthead {
     height: 52px;
@@ -1618,4 +1619,113 @@ html[lang='ko'] .team-badge {
   margin: 48px 0 0;
   border: 0;
   border-top: 1px solid var(--line);
+}
+
+/* Heart-rate pacing */
+.effort {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: #555;
+}
+.effort-track {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  overflow: hidden;
+  background: #e6e6e6;
+  border-radius: 4px;
+}
+#effortFill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: #111;
+}
+.effort[data-zone='edge'] #effortFill {
+  background: #b86e00;
+}
+.effort[data-zone='danger'] #effortFill {
+  background: #d62828;
+}
+/* Zone boundaries at 70% and 90%, so the zones read without color. */
+.effort-track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #fff;
+}
+.effort-track i:first-of-type {
+  left: 70%;
+}
+.effort-track i:last-of-type {
+  left: 90%;
+}
+.effort-zone {
+  min-width: 72px;
+  text-align: right;
+}
+.effort-bpm {
+  min-width: 64px;
+  text-align: right;
+}
+.effort-bpm strong,
+.race-clock strong {
+  color: #111;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.strain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--strain, 0);
+  background: radial-gradient(ellipse at center, transparent 55%, #d6282880 100%);
+  animation: strain-beat var(--beat, 0.55s) ease-out infinite;
+}
+@keyframes strain-beat {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  12% {
+    transform: scale(1.035);
+  }
+}
+.arena.reduced-motion .strain {
+  animation: none;
+}
+.arena.blown canvas {
+  filter: contrast(0.5) blur(1px);
+}
+.finish-stats {
+  display: flex;
+  gap: 18px;
+  margin: 0 0 12px;
+}
+.finish-stats dt {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #555;
+}
+.finish-stats dd {
+  margin: 2px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.completion .finish-record {
+  margin: 0 0 12px;
+  color: #111;
+  font-weight: 700;
+}
+@media (max-width: 900px) {
+  .effort {
+    gap: 8px;
+    font-size: 11px;
+  }
 }

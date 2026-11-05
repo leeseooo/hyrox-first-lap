@@ -16,7 +16,7 @@
     <meta property="og:title" content="FIRST LAP — 처음 경험하는 하이록스" />
     <meta
       property="og:description"
-      content="길게 누르면 달리고, 손을 떼면 멈춥니다. 1인칭 경기장에서 HYROX 8개 종목을 완주까지 체험해 보세요."
+      content="누르면 밀고, 떼면 숨 고르기. 1인칭 경기장에서 심박을 조절하며 HYROX 8개 종목을 완주해 보세요."
     />
     <meta property="og:image" content="https://hyrox-first-lap.pages.dev/og.png" />
     <meta property="og:image:width" content="1200" />
@@ -28,7 +28,7 @@
     <meta name="twitter:title" content="FIRST LAP — 처음 경험하는 하이록스" />
     <meta
       name="twitter:description"
-      content="길게 누르면 달리고, 손을 떼면 멈춥니다. 1인칭 경기장에서 HYROX 8개 종목을 완주까지 체험해 보세요."
+      content="누르면 밀고, 떼면 숨 고르기. 1인칭 경기장에서 심박을 조절하며 HYROX 8개 종목을 완주해 보세요."
     />
     <meta name="twitter:image" content="https://hyrox-first-lap.pages.dev/og.png" />
     <link
@@ -77,7 +77,9 @@
           <h1><span data-i18n="Your first HYROX race.">Your first HYROX race.</span></h1>
         </div>
         <p>
-          <span data-i18n="Hold to move. Release to pause.">Hold to move. Release to pause.</span>
+          <span data-i18n="Hold to push. Release to breathe."
+            >Hold to push. Release to breathe.</span
+          >
         </p>
       </section>
       <section class="division-bar" aria-label="Race division" data-i18n-aria-label="Race division">
@@ -147,7 +149,9 @@
               <span id="stateDot"></span
               ><span id="stateLabel"><span data-i18n="READY">READY</span></span
               ><span class="divider"></span
-              ><span><span data-i18n="ATHLETE VIEW">ATHLETE VIEW</span></span>
+              ><span class="race-clock"
+                ><span data-i18n="TIME">TIME</span> <strong id="raceClock">0:00.0</strong></span
+              >
             </div>
             <div class="scene-tools">
               <button id="focus" aria-pressed="false">
@@ -173,8 +177,8 @@
             id="arena"
             tabindex="0"
             role="group"
-            aria-label="Press and hold to move through the race. Release to pause."
-            data-i18n-aria-label="Press and hold to move through the race. Release to pause."
+            aria-label="Hold to speed up through the race. Release to breathe."
+            data-i18n-aria-label="Hold to speed up through the race. Release to breathe."
           >
             <canvas
               id="scene"
@@ -182,6 +186,7 @@
               data-i18n-aria-label="Abstract rectangular 3D arena"
             ></canvas>
             <div class="scene-shade"></div>
+            <div class="strain" aria-hidden="true"></div>
             <div class="hud-top">
               <div>
                 <div class="hud-label" id="phaseLabel">RUN 01 / 08</div>
@@ -201,8 +206,10 @@
                   >Your race starts with a hold.</span
                 ></strong
               ><span id="calloutText"
-                ><span data-i18n="Press and hold the arena or the button. Release to pause."
-                  >Press and hold the arena or the button. Release to pause.</span
+                ><span
+                  data-i18n="Hold the arena, the button, or Space to speed up. Release to breathe. Keep your heart rate out of the red."
+                  >Hold the arena, the button, or Space to speed up. Release to breathe. Keep your
+                  heart rate out of the red.</span
                 ></span
               >
             </div>
@@ -219,10 +226,11 @@
               ><span><span data-i18n="ARENA MAP">ARENA MAP</span></span>
             </div>
             <div class="hud-bottom">
-              <span id="motionLabel"><span data-i18n="HOLD TO MOVE">HOLD TO MOVE</span></span
+              <span id="motionLabel"
+                ><span data-i18n="HOLD TO SPEED UP">HOLD TO SPEED UP</span></span
               ><span
-                ><span data-i18n="Accelerated learning experience · about 4 min"
-                  >Accelerated learning experience · about 4 min</span
+                ><span data-i18n="Accelerated learning experience · about 6 min"
+                  >Accelerated learning experience · about 6 min</span
                 ></span
               >
             </div>
@@ -239,6 +247,21 @@
                   >Now you know what comes next.</span
                 >
               </p>
+              <dl class="finish-stats">
+                <div>
+                  <dt data-i18n="TIME">TIME</dt>
+                  <dd id="finishTime">0:00.0</dd>
+                </div>
+                <div>
+                  <dt data-i18n="BLOW-UPS">BLOW-UPS</dt>
+                  <dd id="finishBlowups">0</dd>
+                </div>
+                <div>
+                  <dt data-i18n="BEST">BEST</dt>
+                  <dd id="finishBest">—</dd>
+                </div>
+              </dl>
+              <p class="finish-record" id="finishRecord" hidden></p>
               <div class="completion-actions">
                 <button id="again"><span data-i18n="Race again">Race again</span></button
                 ><button id="share" type="button" class="secondary">
@@ -254,9 +277,29 @@
           </div>
           <div class="progress-track"><div id="progressFill"></div></div>
           <div class="play-controls" id="playControls">
+            <div
+              class="effort"
+              id="effort"
+              role="meter"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+              aria-label="Heart rate"
+              data-i18n-aria-label="Heart rate"
+              data-zone="steady"
+            >
+              <span class="effort-label" data-i18n="HEART RATE">HEART RATE</span>
+              <span class="effort-track" aria-hidden="true"
+                ><span id="effortFill"></span><i></i><i></i
+              ></span>
+              <span class="effort-zone" id="effortZone" aria-hidden="true">Steady</span>
+              <span class="effort-bpm" aria-hidden="true"
+                ><strong id="effortBpm">110</strong> BPM</span
+              >
+            </div>
             <button class="hold-button" id="hold">
               <span class="hold-icon" aria-hidden="true">Ⅱ</span
-              ><span id="holdText"><span data-i18n="Hold to move">Hold to move</span></span
+              ><span id="holdText"><span data-i18n="Hold to speed up">Hold to speed up</span></span
               ><span class="keycap" data-i18n="SPACE">SPACE</span></button
             ><button id="skipRun"><span data-i18n="Skip run">Skip run</span></button>
           </div>
