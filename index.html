@@ -150,7 +150,8 @@
               ><span id="stateLabel"><span data-i18n="READY">READY</span></span
               ><span class="divider"></span
               ><span class="race-clock"
-                ><span data-i18n="TIME">TIME</span> <strong id="raceClock">0:00.0</strong></span
+                ><span data-i18n="RACE TIME">RACE TIME</span>
+                <strong id="raceClock">0:00:00</strong></span
               >
             </div>
             <div class="scene-tools">
@@ -248,9 +249,10 @@
                 >
               </p>
               <dl class="finish-stats">
-                <div>
-                  <dt data-i18n="TIME">TIME</dt>
-                  <dd id="finishTime">0:00.0</dd>
+                <div class="finish-time">
+                  <dt data-i18n="RACE TIME">RACE TIME</dt>
+                  <dd id="finishTime">0:00:00</dd>
+                  <dd class="finish-play" id="finishPlay" hidden></dd>
                 </div>
                 <div>
                   <dt data-i18n="BLOW-UPS">BLOW-UPS</dt>

@@ -21,7 +21,7 @@ import { stations } from './data/stations.js';
 import { registerWebMcpTools } from './webmcp.js';
 import { segmentFor } from './race/course.js';
 import { createPacing, stepPacing } from './race/pacing.js';
-import { formatRaceTime, loadBest, saveIfBest } from './race/record.js';
+import { formatRaceClock, formatRaceTime, loadBest, saveIfBest } from './race/record.js';
 import { heartRate, strainLevel } from './race/strain.js';
 const $ = (id) => document.getElementById(id);
 setLocale(initialLanguage());
@@ -222,9 +222,11 @@ function finishRace() {
 function renderResult() {
   if (!lastResult) return;
   const { practice, time, blowups, isBest, best } = lastResult;
-  $('finishTime').textContent = practice ? tr('PRACTICE') : formatRaceTime(time);
+  $('finishTime').textContent = practice ? tr('PRACTICE') : formatRaceClock(time);
+  $('finishPlay').hidden = practice;
+  $('finishPlay').textContent = `${tr('Played in')} ${formatRaceTime(time)}`;
   $('finishBlowups').textContent = String(blowups);
-  $('finishBest').textContent = best === null ? '—' : formatRaceTime(best);
+  $('finishBest').textContent = best === null ? '—' : formatRaceClock(best);
   $('finishRecord').hidden = !practice && !isBest;
   $('finishRecord').textContent = tr(
     practice
@@ -523,7 +525,7 @@ function updateStrain() {
     percent = Math.round(effort * 100),
     bpm = heartRate(effort),
     arena = $('arena');
-  $('raceClock').textContent = formatRaceTime(state.raceTime);
+  $('raceClock').textContent = formatRaceClock(state.raceTime);
   arena.style.setProperty('--strain', strainLevel(effort).toFixed(3));
   arena.classList.toggle('blown', blown);
   // Restarting the pulse animation every frame would stutter; step it every 5 bpm.
@@ -767,7 +769,7 @@ async function shareFinish() {
   const timed = lastResult && !lastResult.practice,
     text = tr(
       timed
-        ? `${state.profile.doubles ? 'We' : 'I'} finished FIRST LAP in ${formatRaceTime(lastResult.time)}. Can you pace it better?`
+        ? `${state.profile.doubles ? 'We' : 'I'} finished FIRST LAP with a race time of ${formatRaceClock(lastResult.time)}. Can you pace it better?`
         : state.profile.doubles
           ? 'We finished our first HYROX race on FIRST LAP.'
           : 'I finished my first HYROX race on FIRST LAP.',
@@ -898,6 +900,7 @@ window.hyrox = {
     complete: state.complete,
     completedStations: state.done.size,
     raceTime: state.raceTime,
+    raceClock: formatRaceClock(state.raceTime),
     paused: state.paused,
     effort: state.sim.effort,
     pace: state.sim.pace,

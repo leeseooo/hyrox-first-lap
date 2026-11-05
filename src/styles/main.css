@@ -1769,6 +1769,15 @@ html[lang='ko'] .team-badge {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+.finish-stats .finish-time dd:first-of-type {
+  font-size: 28px;
+  color: var(--accent);
+}
+.finish-stats .finish-play {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
 .completion .finish-record {
   margin: 0 0 12px;
   color: var(--accent);

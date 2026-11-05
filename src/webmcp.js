@@ -30,7 +30,7 @@ export function registerWebMcpTools(api) {
     {
       name: 'get_race_progress',
       description:
-        'Read the current race segment, route, progress, camera position, heart-rate effort (0–1), pace (0–1), blow-ups and the race clock in seconds.',
+        'Read the current race segment, route, progress, camera position, heart-rate effort (0–1), pace (0–1), blow-ups, the race clock in game seconds and as a race-time equivalent (×15, h:mm:ss).',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true },
       execute: () => api.getState(),

@@ -264,7 +264,8 @@ export const korean = {
   Steady: '안정',
   'Near the limit': '한계 근접',
   'Red line': '위험',
-  TIME: '기록',
+  'RACE TIME': '대회 환산',
+  'Played in': '플레이',
   'BLOW-UPS': '퍼짐',
   BEST: '최고 기록',
   PRACTICE: '연습',
@@ -297,9 +298,11 @@ export function tr(value) {
   if (korean[text]) return korean[text];
   const suffix = ' Your teammate completes the second half while you stay with them.';
   if (text.endsWith(suffix)) return tr(text.slice(0, -suffix.length)) + ' ' + tr(suffix.trim());
-  let m = text.match(/^(I|We) finished FIRST LAP in (\d+:\d{2}\.\d)\. Can you pace it better\?$/);
+  let m = text.match(
+    /^(I|We) finished FIRST LAP with a race time of (\d+:\d{2}:\d{2})\. Can you pace it better\?$/,
+  );
   if (m)
-    return `${m[1] === 'We' ? '우리 팀이 ' : ''}FIRST LAP 하이록스 체험을 ${m[2]}에 완주했어요. 페이스 조절, 더 잘할 수 있나요?`;
+    return `${m[1] === 'We' ? '우리 팀이 ' : ''}FIRST LAP 하이록스 체험을 대회 환산 ${m[2]}에 완주했어요. 페이스 조절, 더 잘할 수 있나요?`;
   m = text.match(/^Run (\d{2})$/);
   if (m) return `달리기 ${m[1]}`;
   m = text.match(/^(Into|Teammate:|Next:) (.+)$/);

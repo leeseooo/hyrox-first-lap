@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { RULES_VERSION } from '../src/race/pacing.js';
-import { formatRaceTime, loadBest, saveIfBest } from '../src/race/record.js';
+import {
+  RACE_SCALE,
+  formatRaceClock,
+  formatRaceTime,
+  loadBest,
+  saveIfBest,
+} from '../src/race/record.js';
 
 function memoryStorage(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -22,6 +28,21 @@ const result = (time) => ({
   blowups: 2,
   splits: [{ phase: 0, mode: 'run', t: 30 }],
   date: '2026-11-05',
+});
+
+describe('formatRaceClock', () => {
+  it('scales game seconds to a real race time', () => {
+    expect(RACE_SCALE).toBe(15);
+    expect(formatRaceClock(0)).toBe('0:00:00');
+    expect(formatRaceClock(4)).toBe('0:01:00');
+    expect(formatRaceClock(338.4)).toBe('1:24:36');
+    expect(formatRaceClock(400.7)).toBe('1:40:10');
+  });
+
+  it('drops partial seconds so the live clock never runs ahead', () => {
+    expect(formatRaceClock(0.06)).toBe('0:00:00');
+    expect(formatRaceClock(-3)).toBe('0:00:00');
+  });
 });
 
 describe('formatRaceTime', () => {
