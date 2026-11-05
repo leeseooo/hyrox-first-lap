@@ -926,8 +926,7 @@ body.focus-view {
   .course {
     padding: 18px 12px;
   }
-  .live-state .divider,
-  .live-state > span:last-child {
+  .race-clock > span {
     display: none;
   }
   .brand-sub,
