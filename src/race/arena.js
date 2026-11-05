@@ -1,5 +1,6 @@
 // Perspective 3D geometry with flat-lit faces, edges and point landmarks in a dark arena.
 import { strainCamera } from './strain.js';
+import { AthleteArms } from './athlete.js';
 import { BACKGROUND, DOTS, FOG, LIGHT, PAINT } from './palette.js';
 
 const vertex = `attribute vec3 position;attribute vec3 tint;uniform mat4 matrix;uniform mat4 model;uniform float pointSize;varying vec3 world;varying vec3 color;void main(){vec4 w=model*vec4(position,1.);world=w.xyz;color=tint;gl_Position=matrix*w;gl_PointSize=pointSize;}`;
@@ -693,10 +694,9 @@ export class ArenaRenderer {
     const length = Math.hypot(...LIGHT.direction);
     gl.uniform3fv(this.u.fogColor, BACKGROUND);
     gl.uniform2f(this.u.fog, FOG.near, FOG.far);
-    gl.uniform3fv(
-      this.u.light,
-      LIGHT.direction.map((v) => v / length),
-    );
+    const light = LIGHT.direction.map((v) => v / length);
+    gl.uniform3fv(this.u.light, light);
+    this.arms = new AthleteArms(gl, { fogColor: BACKGROUND, fog: FOG, light });
     gl.uniform3fv(this.u.tones, LIGHT.tones);
     this.paint = PAINT.floor;
     this.meshes = {};
@@ -895,6 +895,7 @@ export class ArenaRenderer {
   }
   configureDivision(profile) {
     this.profile = profile;
+    if (profile?.playerSex) this.arms.load(profile.playerSex);
     this.clearEquipment();
     this.buildWorld();
   }
@@ -1420,8 +1421,49 @@ export class ArenaRenderer {
         profile.partnerSex,
       );
     }
-    this.hands(pose);
+    if (!this.playerArms(pose, vp, profile)) this.hands(pose);
+    gl.useProgram(this.program);
   }
+  // Draws the modelled arms; returns false while they load so the drawn arms stand in.
+  playerArms(pose, vp, profile) {
+    if (!profile?.playerSex) return false;
+    const sides = [-1, 1],
+      palm = palmFor(pose),
+      c = Math.cos(pose.yaw),
+      s = Math.sin(pose.yaw),
+      turn = (d) => [d[0] * c + d[2] * s, d[1], -d[0] * s + d[2] * c];
+    return this.arms.draw(profile.playerSex, vp, pose.eye, {
+      root: pose.root,
+      yaw: pose.yaw,
+      shoulders: sides.map((side) => this.worldPoint(pose, [side * 0.22, pose.shoulderY, 0.1])),
+      elbows: sides.map((side, j) =>
+        this.worldPoint(pose, [
+          side * 0.42,
+          lerp(pose.shoulderY, pose.hands[j][1], 0.58) - 0.14,
+          lerp(0.1, pose.hands[j][2], 0.47) + 0.12,
+        ]),
+      ),
+      hands: sides.map((_, j) => this.worldPoint(pose, pose.hands[j])),
+      palms: sides.map((side) => turn([-side * palm[0], palm[1], palm[2]])),
+    });
+  }
+}
+
+// Which way the left palm faces in the athlete's own frame (x right, y up, -z ahead).
+const PALMS = [
+  [0.7, -0.7, 0.2],
+  [0.2, 0, -1],
+  [0.6, -0.8, 0],
+  [0, -1, 0],
+  [0, -1, 0.2],
+  [1, 0, 0],
+  [0.4, 0.3, -0.85],
+  [0.5, 0.2, -0.85],
+];
+function palmFor(pose) {
+  if (pose.celebrating) return [0.3, 0, -1];
+  if (pose.run || pose.travel || pose.watching) return [1, -0.2, 0];
+  return PALMS[pose.index] || [1, -0.2, 0];
 }
 
 const FONT = {

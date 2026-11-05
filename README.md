@@ -41,13 +41,13 @@ HYROX는 1 km 달리기와 운동 종목 8개를 번갈아 하는 피트니스 �
 
 ## 기술 스택
 
-| 영역   | 사용 기술                                             |
-| ------ | ----------------------------------------------------- |
-| UI     | Vanilla JS (ES Modules), HTML, CSS — 프레임워크 없음  |
-| 렌더링 | WebGL 직접 구현 (선 기반 3D 아레나, 경로 보간 카메라) |
-| 빌드   | Vite — 해시 파일명으로 캐시 무효화                    |
-| 품질   | Vitest, ESLint, Prettier, EditorConfig                |
-| 배포   | Cloudflare Pages, GitHub Actions                      |
+| 영역   | 사용 기술                                                                        |
+| ------ | -------------------------------------------------------------------------------- |
+| UI     | Vanilla JS (ES Modules), HTML, CSS — 프레임워크 없음                             |
+| 렌더링 | WebGL 직접 구현 (면과 선, 점으로 그린 3D 아레나, 스킨 메시 팔, 경로 보간 카메라) |
+| 빌드   | Vite — 해시 파일명으로 캐시 무효화                                               |
+| 품질   | Vitest, ESLint, Prettier, EditorConfig                                           |
+| 배포   | Cloudflare Pages, GitHub Actions                                                 |
 
 ## 아키텍처
 
@@ -80,14 +80,20 @@ hyrox-first-lap/
 ├── docs/screenshots/         # README 이미지 (npm run screenshots)
 ├── public/
 │   ├── _headers              # CSP · 보안 헤더 · 에셋 캐시 정책
+│   ├── models/               # 1인칭 팔 모델 (남자, 여자 GLB)
 │   └── og.png                # 링크 미리보기 이미지 (1200×630)
 ├── scripts/
+│   ├── bake-arms.py          # Blender로 원본 캐릭터에서 팔만 잘라 줄이기
 │   └── screenshots.js        # 헤드리스 Chrome으로 README·OG 이미지 생성
 ├── src/
 │   ├── main.js               # 진입점, 레이스 상태 머신과 DOM 바인딩
 │   ├── webmcp.js             # WebMCP 도구 등록
 │   ├── race/
 │   │   ├── arena.js          # WebGL 렌더러, 카메라·선수 포즈
+│   │   ├── palette.js        # 경기장 재질별 면, 윤곽선, 글자 색
+│   │   ├── athlete.js        # 1인칭 팔 모델 불러오기와 그리기
+│   │   ├── rig.js            # 팔 관절 계산 (2관절 IK, 손목 비틀기)
+│   │   ├── gltf.js           # GLB 파일 읽기
 │   │   ├── course.js         # 참가 방식별 구간 길이 · 버틸 수 있는 페이스
 │   │   ├── pacing.js         # 심박 · 페이스 · 퍼짐 계산
 │   │   ├── record.js         # 기록 표시 · 개인 최고 저장
@@ -151,6 +157,12 @@ flowchart LR
 수동으로 배포하려면 `npm run deploy`를 실행합니다.
 
 </details>
+
+## 에셋
+
+1인칭 팔은 Grab3D의 [Man Base Mesh](https://grab3d.com/models/characters/man-base-character/)와
+[Woman Base Mesh](https://grab3d.com/models/characters/woman-base-character/)(CC0)에서 팔만 잘라 면 6천 개로 줄인 것입니다.
+다시 만들 때는 원본 rigged GLB를 받아 `blender -b --python scripts/bake-arms.py -- <원본.glb> public/models/arms-male.glb`를 실행합니다.
 
 ## 면책
 
