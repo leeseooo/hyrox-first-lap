@@ -1,4 +1,6 @@
 // Perspective 3D geometry with white occluding surfaces, black edges and point landmarks.
+import { strainCamera } from './strain.js';
+
 const vertex = `attribute vec3 position;uniform mat4 matrix;uniform mat4 model;uniform float pointSize;void main(){gl_Position=matrix*model*vec4(position,1.);gl_PointSize=pointSize;}`;
 const fragment = `precision mediump float;uniform vec3 color;uniform float isPoint;void main(){if(isPoint>.5&&length(gl_PointCoord-vec2(.5))>.5)discard;gl_FragColor=vec4(color,1.);}`;
 const WHITE = [1, 1, 1],
@@ -1166,10 +1168,22 @@ export class ArenaRenderer {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.uniform1f(this.u.isPoint, 0);
     gl.uniform1f(this.u.pointSize, 2.1 * this.dpr);
-    const vp = multiply(
-      perspective(this.canvas.width / this.canvas.height, pose.fov),
-      view(pose.eye, pose.yaw, pose.pitch, pose.roll),
-    );
+    // Heart-rate strain: sway, tunnel vision and a slump when blown (off with reduced motion).
+    const strain = strainCamera({
+        effort: s.sim?.effort,
+        blown: s.sim?.blown,
+        reduced: s.reduced,
+        time: s.time,
+      }),
+      vp = multiply(
+        perspective(this.canvas.width / this.canvas.height, pose.fov + strain.fov),
+        view(
+          [pose.eye[0], pose.eye[1] + strain.bob, pose.eye[2]],
+          pose.yaw,
+          pose.pitch + strain.pitch,
+          pose.roll + strain.roll,
+        ),
+      );
     gl.uniformMatrix4fv(this.u.matrix, false, vp);
     this.drawBatch(this.staticBatch);
     gl.uniformMatrix4fv(this.u.model, false, identity());
