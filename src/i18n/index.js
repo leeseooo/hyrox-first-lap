@@ -270,6 +270,19 @@ export const korean = {
   BEST: '최고 기록',
   PRACTICE: '연습',
   'New personal best!': '개인 최고 기록!',
+  'YOUR BEST': '내 최고',
+  FRIEND: '친구',
+  'Dead heat with your friend.': '친구와 동시에 들어왔어요.',
+  'Finish card': '기록 카드',
+  'Share image': '이미지 공유',
+  'Save image': '이미지 저장',
+  'Share link': '링크 공유',
+  Close: '닫기',
+  'Unofficial HYROX experience': '비공식 하이록스 체험',
+  DIVISION: '참가 방식',
+  DATE: '날짜',
+  'ROXZONE + WORKOUT': '운동 구역 + 종목',
+  'Can you pace it better?': '페이스 조절, 더 잘할 수 있나요?',
   'Practice finish — skips do not count. Race again without skipping to set a time.':
     '연습 완주예요. 건너뛰기를 쓴 판은 기록이 남지 않아요. 건너뛰지 않고 다시 달려 보세요.',
 };
@@ -303,6 +316,12 @@ export function tr(value) {
   );
   if (m)
     return `${m[1] === 'We' ? '우리 팀이 ' : ''}FIRST LAP 하이록스 체험을 대회 환산 ${m[2]}에 완주했어요. 페이스 조절, 더 잘할 수 있나요?`;
+  m = text.match(/^Race your friend's (\d+:\d{2}:\d{2})\.$/);
+  if (m) return `친구의 ${m[1]} 기록에 도전해 보세요.`;
+  m = text.match(/^You beat your friend by ([\d:]+)\.$/);
+  if (m) return `친구보다 ${m[1]} 빨랐어요.`;
+  m = text.match(/^Your friend was ([\d:]+) faster\.$/);
+  if (m) return `친구가 ${m[1]} 더 빨랐어요.`;
   m = text.match(/^Run (\d{2})$/);
   if (m) return `달리기 ${m[1]}`;
   m = text.match(/^(Into|Teammate:|Next:) (.+)$/);

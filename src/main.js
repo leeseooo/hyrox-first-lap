@@ -22,6 +22,16 @@ import { registerWebMcpTools } from './webmcp.js';
 import { segmentFor } from './race/course.js';
 import { createPacing, stepPacing } from './race/pacing.js';
 import { formatRaceClock, formatRaceTime, loadBest, saveIfBest } from './race/record.js';
+import {
+  alongPath,
+  clockedPlan,
+  decodeGhost,
+  encodeGhost,
+  formatDelta,
+  ghostAt,
+  ghostTimeAt,
+} from './race/ghost.js';
+import { CARD, cardRows, drawCard } from './race/card.js';
 import { heartRate, strainLevel } from './race/strain.js';
 const $ = (id) => document.getElementById(id);
 setLocale(initialLanguage());
@@ -40,13 +50,17 @@ const state = {
   phaseTime: 0,
   paused: false,
   sim: createPacing(),
-  // { phase, mode, t } at the end of every clocked segment — the ghost race (C) replays these.
+  // { phase, mode, t } at the end of every clocked segment — the ghost race replays these.
   splits: [],
+  // { source: 'friend' | 'best', times } — the run to race against, or null.
+  ghost: null,
   route: null,
   reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
   done: new Set(),
   profile: makeProfile('men-single'),
 };
+// A friend's record link (?ghost=…) races their ghost in their division.
+const friendGhost = decodeGhost(new URLSearchParams(location.search).get('ghost'));
 let attemptStarted = false,
   attemptAssisted = false,
   attemptFinished = false,
@@ -138,11 +152,44 @@ function selectPhase(p, internal = false) {
   lastDisplay = -1;
   update();
 }
-function beginTravel(mode, from, to, points) {
+// The path a travel segment follows on the floor, as [x, z] points between two eyes.
+function travelKnots(mode, from, to, i) {
+  const [fx, , fz] = from;
+  if (mode === 'enter') {
+    const [x] = layout[i];
+    return [
+      [fx, fz],
+      [x, 26],
+      [x, 20],
+      [to[0], to[2]],
+    ];
+  }
+  if (mode === 'handoff')
+    return [
+      [fx, fz],
+      [fx + 2, fz + 1],
+      [to[0], to[2]],
+    ];
+  if (mode === 'finish')
+    return [
+      [fx, fz],
+      [fx + 3, fz],
+      [40, fz],
+      [40, -24],
+    ];
+  return [
+    [fx, fz],
+    [fx - 2.5, fz],
+    [fx - 2.5, 21],
+    [-44, 21],
+    [-44, 26],
+  ];
+}
+function beginTravel(mode, from, to) {
   state.mode = mode;
   state.progress = 0;
   state.phaseTime = 0;
-  state.route = makeRoute(from, to, points);
+  state.route = makeRoute(from, to, travelKnots(mode, from.eye, to.eye, index()));
   lastDisplay = -1;
   update();
 }
@@ -173,22 +220,8 @@ function finishStation() {
     to.root = [40, 0, -24];
     to.yaw = 0;
     to.pitch = -0.05;
-    beginTravel('finish', from, to, [
-      [from.eye[0], from.eye[2]],
-      [from.eye[0] + 3, from.eye[2]],
-      [40, from.eye[2]],
-      [40, -24],
-    ]);
-  } else {
-    const to = poseAt(state.phase + 1, 0, 0);
-    beginTravel('exit', from, to, [
-      [from.eye[0], from.eye[2]],
-      [from.eye[0] - 2.5, from.eye[2]],
-      [from.eye[0] - 2.5, 21],
-      [-44, 21],
-      [-44, 26],
-    ]);
-  }
+    beginTravel('finish', from, to);
+  } else beginTravel('exit', from, poseAt(state.phase + 1, 0, 0));
 }
 function browserStorage() {
   try {
@@ -203,25 +236,25 @@ function finishRace() {
     { id } = state.profile,
     practice = attemptAssisted,
     time = state.raceTime,
-    blowups = state.sim.blowups;
+    blowups = state.sim.blowups,
+    date = new Date().toISOString().slice(0, 10),
+    times = state.splits.map((split) => split.t);
   let isBest = false,
     best = loadBest(storage, id)?.time ?? null;
   if (!practice) {
-    isBest = saveIfBest(storage, id, {
-      time,
-      blowups,
-      splits: state.splits,
-      date: new Date().toISOString().slice(0, 10),
-    }).isBest;
+    isBest = saveIfBest(storage, id, { time, blowups, splits: state.splits, date }).isBest;
     if (isBest) best = time;
   }
-  lastResult = { practice, time, blowups, isBest, best };
+  // Positive when the friend's ghost was faster.
+  const friendGap =
+    !practice && state.ghost?.source === 'friend' ? time - state.ghost.times.at(-1) : null;
+  lastResult = { practice, time, blowups, isBest, best, date, times, friendGap };
   renderResult();
   return lastResult;
 }
 function renderResult() {
   if (!lastResult) return;
-  const { practice, time, blowups, isBest, best } = lastResult;
+  const { practice, time, blowups, isBest, best, friendGap } = lastResult;
   $('finishTime').textContent = practice ? tr('PRACTICE') : formatRaceClock(time);
   $('finishPlay').hidden = practice;
   $('finishPlay').textContent = `${tr('Played in')} ${formatRaceTime(time)}`;
@@ -233,21 +266,82 @@ function renderResult() {
       ? 'Practice finish — skips do not count. Race again without skipping to set a time.'
       : 'New personal best!',
   );
+  $('finishGhost').hidden = friendGap === null;
+  if (friendGap !== null) {
+    const gap = formatDelta(Math.abs(friendGap), false);
+    $('finishGhost').textContent = tr(
+      gap === '0:00'
+        ? 'Dead heat with your friend.'
+        : friendGap < 0
+          ? `You beat your friend by ${gap}.`
+          : `Your friend was ${gap} faster.`,
+    );
+  }
+}
+// Your friend's link first (same division), else your personal best. Splits from another
+// course shape (an old save) do not count.
+function pickGhost() {
+  const { id, doubles } = state.profile;
+  if (friendGhost?.division === id) return { source: 'friend', times: friendGhost.times };
+  const times = loadBest(browserStorage(), id)?.splits?.map((split) => split.t);
+  return times?.length === clockedPlan(doubles).length ? { source: 'best', times } : null;
+}
+// Where the ghost stands on the floor, as [x, z], at a clocked segment and progress.
+function ghostPoint({ index: k, progress: p }) {
+  const { doubles } = state.profile,
+    { mode, phase } = clockedPlan(doubles)[k],
+    i = Math.floor(phase / 2),
+    floor = (eye) => [eye[0], eye[2]];
+  if (mode === 'run') return floor(poseAt(phase, p, 0).eye);
+  // Doubles split each station in two halves of progress, like the race itself.
+  const half = (q) => (doubles ? q * 0.5 : q),
+    station = (q) => poseAt(i * 2 + 1, q, 0).eye;
+  if (mode === 'workout') return floor(station(half(p)));
+  if (mode === 'partner') return floor(station(0.5));
+  const from = mode === 'enter' ? poseAt(i * 2, 1, 0).eye : station(doubles ? 0.5 : 1),
+    to = mode === 'enter' ? station(0) : mode === 'exit' ? poseAt(i * 2 + 2, 0, 0).eye : from;
+  return alongPath(travelKnots(mode, from, to, i), p);
+}
+const mapPoint = ([x, z]) => [
+  Math.max(13, Math.min(127, 13 + ((x + 44) / 88) * 114)),
+  Math.max(13, Math.min(87, 13 + ((z + 26) / 52) * 74)),
+];
+// Game seconds behind (+) or ahead (-) of the ghost at this point of the course,
+// or null while there is nothing to race (no ghost, a practice run, not started, finished).
+function ghostGap() {
+  const ghost = state.ghost;
+  if (!ghost || attemptAssisted || !state.started || !segment().clock) return null;
+  const p = Math.min(1, state.phaseTime / segment().length);
+  return state.raceTime - ghostTimeAt(ghost.times, state.splits.length, p);
+}
+let shownGhost = '';
+// The live gap chip and the ghost's dot on the map.
+function updateGhost() {
+  const ghost = state.ghost,
+    delta = ghostGap();
+  $('ghostChip').hidden = delta === null;
+  $('ghostDot').style.display = delta === null ? 'none' : 'inline';
+  if (delta === null) return;
+  const text = formatDelta(delta),
+    shown = `${ghost.source}${text}${getLanguage()}`;
+  if (shown !== shownGhost) {
+    shownGhost = shown;
+    $('ghostLabel').textContent = tr(ghost.source === 'friend' ? 'FRIEND' : 'YOUR BEST');
+    $('ghostDelta').textContent = text;
+    $('ghostChip').dataset.ahead = String(delta < 0);
+  }
+  const [cx, cy] = mapPoint(ghostPoint(ghostAt(ghost.times, state.raceTime)));
+  $('ghostDot').setAttribute('cx', cx);
+  $('ghostDot').setAttribute('cy', cy);
 }
 function advance() {
   if (state.mode === 'run') {
     const from = participantPose({ ...state, progress: 1 }),
       next = state.phase + 1,
-      to = poseAt(next, 0, 0),
-      [x] = layout[index()];
+      to = poseAt(next, 0, 0);
     state.phase = next;
     renderer?.setStage(next);
-    beginTravel('enter', from, to, [
-      [from.eye[0], from.eye[2]],
-      [x, 26],
-      [x, 20],
-      [to.eye[0], to.eye[2]],
-    ]);
+    beginTravel('enter', from, to);
   } else if (state.mode === 'enter') {
     state.mode = 'workout';
     state.progress = 0;
@@ -261,11 +355,7 @@ function advance() {
       state.phaseTime = stations[index()].duration / 2;
       const from = participantPose(state),
         to = watchPose({ ...state, mode: 'partner', phaseTime: 0 });
-      beginTravel('handoff', from, to, [
-        [from.eye[0], from.eye[2]],
-        [from.eye[0] + 2, from.eye[2] + 1],
-        [to.eye[0], to.eye[2]],
-      ]);
+      beginTravel('handoff', from, to);
     } else finishStation();
   } else if (state.mode === 'handoff') {
     state.mode = 'partner';
@@ -363,7 +453,9 @@ function updateControl() {
       ? 'Race paused.'
       : attemptStarted
         ? 'Take a breath. Then keep going.'
-        : 'Your race starts with a hold.',
+        : state.ghost?.source === 'friend'
+          ? `Race your friend's ${formatRaceClock(state.ghost.times.at(-1))}.`
+          : 'Your race starts with a hold.',
   );
   $('calloutText').textContent = tr(
     state.paused || attemptStarted
@@ -565,9 +657,11 @@ function updateProgress() {
           : `/ ${target.toLocaleString()} ${['workout', 'partner'].includes(state.mode) ? s.unit : 'm'}`,
   );
   $('progressFill').style.width = `${state.progress * 100}%`;
-  const pose = participantPose(state);
-  $('mapDot').setAttribute('cx', Math.max(13, Math.min(127, 13 + ((pose.eye[0] + 44) / 88) * 114)));
-  $('mapDot').setAttribute('cy', Math.max(13, Math.min(87, 13 + ((pose.eye[2] + 26) / 52) * 74)));
+  const { eye } = participantPose(state),
+    [cx, cy] = mapPoint([eye[0], eye[2]]);
+  $('mapDot').setAttribute('cx', cx);
+  $('mapDot').setAttribute('cy', cy);
+  updateGhost();
 }
 function pointerMatches(e) {
   return !e || heldPointer?.id === e.pointerId;
@@ -665,6 +759,7 @@ function reset() {
   state.raceTime = 0;
   state.sim = createPacing();
   state.splits = [];
+  state.ghost = pickGhost();
   lastResult = null;
   renderer?.clearEquipment();
   selectPhase(0, true);
@@ -757,23 +852,33 @@ $('role').onchange = () => setDivision($('division').value, $('role').value);
 $('skipRun').onclick = skipRun;
 $('reset').onclick = reset;
 $('again').onclick = reset;
-$('share').onclick = shareFinish;
+// A timed finish opens its card first; a practice finish shares the link straight away.
+$('share').onclick = () =>
+  lastResult && !lastResult.practice ? openCard() : shareFinish($('share'));
+// A timed finish carries its splits, so whoever opens the link races its ghost.
 function shareLink(medium) {
   const url = new URL(location.origin + location.pathname);
   url.searchParams.set('utm_source', 'share');
   url.searchParams.set('utm_medium', medium);
   url.searchParams.set('utm_campaign', 'finisher');
+  if (lastResult && !lastResult.practice)
+    url.searchParams.set(
+      'ghost',
+      encodeGhost({ division: state.profile.id, times: lastResult.times }),
+    );
   return url.href;
 }
-async function shareFinish() {
-  const timed = lastResult && !lastResult.practice,
-    text = tr(
-      timed
-        ? `${state.profile.doubles ? 'We' : 'I'} finished FIRST LAP with a race time of ${formatRaceClock(lastResult.time)}. Can you pace it better?`
-        : state.profile.doubles
-          ? 'We finished our first HYROX race on FIRST LAP.'
-          : 'I finished my first HYROX race on FIRST LAP.',
-    );
+function shareText() {
+  return tr(
+    lastResult && !lastResult.practice
+      ? `${state.profile.doubles ? 'We' : 'I'} finished FIRST LAP with a race time of ${formatRaceClock(lastResult.time)}. Can you pace it better?`
+      : state.profile.doubles
+        ? 'We finished our first HYROX race on FIRST LAP.'
+        : 'I finished my first HYROX race on FIRST LAP.',
+  );
+}
+async function shareFinish(button) {
+  const text = shareText();
   let method;
   if (navigator.share) {
     try {
@@ -785,7 +890,7 @@ async function shareFinish() {
   }
   if (!method) {
     const copied = await copyText(`${text} ${shareLink('copy_link')}`);
-    flashShareLabel(copied ? 'Link copied.' : 'Could not copy the link.');
+    flashShareLabel(button, copied ? 'Link copied.' : 'Could not copy the link.');
     if (!copied) return;
     method = 'copy_link';
   }
@@ -813,14 +918,70 @@ async function copyText(value) {
   previousFocus?.focus?.();
   return copied;
 }
+let cardFile = null;
+$('cardClose').onclick = () => $('cardDialog').close();
+$('cardLink').onclick = () => shareFinish($('cardLink'));
+$('cardShare').onclick = shareCard;
+$('cardSave').onclick = saveCard;
+// Draws the finish card, then offers file sharing where the browser supports it.
+async function openCard() {
+  if (!lastResult || lastResult.practice) return;
+  await document.fonts?.ready;
+  const canvas = $('cardCanvas');
+  canvas.width = CARD.width;
+  canvas.height = CARD.height;
+  drawCard(canvas.getContext('2d'), {
+    time: lastResult.time,
+    blowups: lastResult.blowups,
+    division: tr(state.profile.label),
+    date: lastResult.date,
+    rows: cardRows(lastResult.times, state.profile.doubles),
+    stations: stations.map((s) => tr(s.name)),
+    site: location.host,
+    tr,
+  });
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  cardFile = blob
+    ? new File([blob], `first-lap-${formatRaceClock(lastResult.time).replaceAll(':', '-')}.png`, {
+        type: 'image/png',
+      })
+    : null;
+  $('cardShare').hidden = !cardFile || !navigator.canShare?.({ files: [cardFile] });
+  $('cardSave').disabled = !cardFile;
+  $('cardDialog').showModal();
+}
+async function shareCard() {
+  if (!cardFile) return;
+  try {
+    await navigator.share({ files: [cardFile], text: `${shareText()} ${shareLink('card_share')}` });
+  } catch {
+    return;
+  }
+  track(
+    'share',
+    metrics({ method: 'card_share', content_type: 'race_card', item_id: state.profile.id }),
+  );
+}
+function saveCard() {
+  if (!cardFile) return;
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(cardFile);
+  link.download = cardFile.name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  track(
+    'share',
+    metrics({ method: 'card_save', content_type: 'race_card', item_id: state.profile.id }),
+  );
+}
 let shareLabelTimer;
-function flashShareLabel(message) {
+function flashShareLabel(button, message) {
   $('announcement').textContent = tr(message);
   // Swap the inner [data-i18n] label so a later language change still translates it.
-  const label = $('share').firstElementChild;
+  const label = button.firstElementChild;
   label.textContent = tr(message);
   clearTimeout(shareLabelTimer);
-  shareLabelTimer = setTimeout(() => (label.textContent = tr('Share your finish')), 2000);
+  shareLabelTimer = setTimeout(() => (label.textContent = tr(label.dataset.i18n)), 2000);
 }
 $('skip').onclick = () => {
   if (state.complete) return;
@@ -884,6 +1045,12 @@ function frame(t) {
   }
   requestAnimationFrame(frame);
 }
+if (friendGhost) {
+  state.profile = makeProfile(friendGhost.division);
+  $('division').value = friendGhost.division;
+  $('role').value = state.profile.playerSex;
+}
+state.ghost = pickGhost();
 renderer?.configureDivision(state.profile);
 initAnalytics();
 updateDivision();
@@ -901,6 +1068,11 @@ window.hyrox = {
     completedStations: state.done.size,
     raceTime: state.raceTime,
     raceClock: formatRaceClock(state.raceTime),
+    ghost: state.ghost && {
+      source: state.ghost.source,
+      finish: formatRaceClock(state.ghost.times.at(-1)),
+      delta: ghostGap() === null ? null : formatDelta(ghostGap()),
+    },
     paused: state.paused,
     effort: state.sim.effort,
     pace: state.sim.pace,

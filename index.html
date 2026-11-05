@@ -194,8 +194,13 @@
                 <h2 id="sceneTitle">Run 01</h2>
                 <div class="scene-caption" id="sceneCaption">Next: SkiErg</div>
               </div>
-              <div class="distance">
-                <strong id="distance">0</strong><span id="distanceUnit">/ 1,000 m</span>
+              <div class="hud-side">
+                <div class="distance">
+                  <strong id="distance">0</strong><span id="distanceUnit">/ 1,000 m</span>
+                </div>
+                <div class="ghost-chip" id="ghostChip" aria-hidden="true" hidden>
+                  <span id="ghostLabel">YOUR BEST</span><strong id="ghostDelta">0:00</strong>
+                </div>
               </div>
             </div>
             <div class="team-badge" id="teamBadge" hidden></div>
@@ -223,6 +228,7 @@
                 <rect x="13" y="13" width="114" height="74" rx="6" class="map-track" />
                 <rect x="29" y="29" width="82" height="42" rx="2" class="map-center" />
                 <text x="70" y="55" text-anchor="middle" data-i18n="ROXZONE">ROXZONE</text>
+                <circle id="ghostDot" cx="13" cy="87" r="5" />
                 <circle id="mapDot" cx="13" cy="87" r="5" /></svg
               ><span><span data-i18n="ARENA MAP">ARENA MAP</span></span>
             </div>
@@ -264,6 +270,7 @@
                 </div>
               </dl>
               <p class="finish-record" id="finishRecord" hidden></p>
+              <p class="finish-ghost" id="finishGhost" hidden></p>
               <div class="completion-actions">
                 <button id="again"><span data-i18n="Race again">Race again</span></button
                 ><button id="share" type="button" class="secondary">
@@ -429,6 +436,20 @@
         </p>
       </section>
     </main>
+    <dialog class="card-dialog" id="cardDialog" aria-labelledby="cardTitle">
+      <h2 id="cardTitle"><span data-i18n="Finish card">Finish card</span></h2>
+      <canvas id="cardCanvas" width="1080" height="1350"></canvas>
+      <div class="card-actions">
+        <button id="cardShare" type="button" hidden>
+          <span data-i18n="Share image">Share image</span></button
+        ><button id="cardSave" type="button"><span data-i18n="Save image">Save image</span></button
+        ><button id="cardLink" type="button" class="secondary">
+          <span data-i18n="Share link">Share link</span></button
+        ><button id="cardClose" type="button" class="secondary">
+          <span data-i18n="Close">Close</span>
+        </button>
+      </div>
+    </dialog>
     <footer>
       <span
         >FIRST LAP <span> / </span>
