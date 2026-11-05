@@ -21,7 +21,7 @@ async function openRace(viewport, deviceScaleFactor = 1) {
 
 const shot = (page, name) => page.screenshot({ path: new URL(name, outDir).pathname });
 
-// Holds Space (the race keeps moving only while held) and captures mid-motion.
+// Holds Space to push the pace and captures mid-motion.
 async function holdAndShot(page, ms, name) {
   // Space on a focused toolbar button would click it instead of moving the athlete.
   await page.evaluate(() => document.activeElement?.blur());

@@ -4,7 +4,7 @@
 
 # FIRST LAP
 
-**길게 누르면 달리고, 손을 떼면 멈춥니다.**<br/>
+**누르면 밀고, 떼면 숨 고르기.**<br/>
 처음 HYROX에 나가는 사람을 위한 1인칭 레이스 체험
 
 [![CI](https://github.com/leeseooo/hyrox-first-lap/actions/workflows/ci.yml/badge.svg)](https://github.com/leeseooo/hyrox-first-lap/actions/workflows/ci.yml)
@@ -25,7 +25,8 @@ HYROX는 1 km 달리기와 운동 종목 8개를 번갈아 하는 피트니스 �
 룰북을 읽어도 실제 경기 흐름은 잘 그려지지 않아서, 경기장 안을 직접 지나가 보는 방식으로 만들었습니다.
 
 - **1인칭 경기장**: 라이브러리 없이 WebGL로 직접 그린 아레나를 선수 시점으로 이동
-- **홀드 투 무브**: 마우스·터치·스페이스바를 누르고 있는 동안만 진행 (약 4분)
+- **페이스 조절**: 마우스·터치·스페이스바를 누르면 빨라지고 심박이 오릅니다. 100%에 닿으면 퍼지므로 빨간 선 바로 밑을 타야 기록이 줄어듭니다 (약 6분)
+- **개인 최고 기록**: 참가 방식별로 브라우저에 저장합니다. 건너뛰기를 쓴 판은 연습 완주로 끝납니다
 - **5개 참가 방식**: 남/여 싱글, 혼성·여자·남자 더블. 시즌 26/27 공식 무게 반영
 - **더블 역할 분담**: 50/50 분할로 파트너 교대와 대기 동선까지 표현
 - **완주 공유**: 모바일은 공유 시트, 데스크톱은 링크 복사
@@ -52,10 +53,12 @@ HYROX는 1 km 달리기와 운동 종목 8개를 번갈아 하는 피트니스 �
 
 ```mermaid
 flowchart LR
-  input["입력<br/>pointer · touch · Space"] --> main["main.js<br/>레이스 상태 머신"]
+  input["입력<br/>pointer · touch · Space"] --> main["main.js<br/>레이스 상태 머신 · 시계"]
   data["data/<br/>stations · divisions"] --> main
-  main --> arena["race/arena.js<br/>WebGL 렌더링"]
-  main --> hud["HUD · 진행 바 · 미니맵"]
+  pacing["race/course · pacing<br/>구간 · 심박 · 페이스"] --> main
+  main --> arena["race/arena.js<br/>WebGL 렌더링 · strain"]
+  main --> hud["HUD · 심박 게이지 · 미니맵"]
+  main --> record["race/record.js<br/>기록 · 개인 최고"]
   i18n["i18n/"] --> hud
   main --> webmcp["webmcp.js<br/>에이전트 도구"]
 ```
@@ -63,6 +66,7 @@ flowchart LR
 레이스는 달리기 8개와 운동 8개, 총 16개 페이즈로 나뉩니다. 각 페이즈 안에서
 `run → enter → workout (→ handoff → partner) → exit` 순서로 모드가 바뀌고,
 마지막 종목 뒤에는 `finish → celebrate → complete`로 끝납니다.
+레이스 시계는 첫 누름에 시작해 결승선에서 멈추고, 매 프레임 `stepPacing`이 페이스와 심박을 계산해 구간 진행 속도를 정합니다.
 
 ## 프로젝트 구조
 
@@ -84,6 +88,10 @@ hyrox-first-lap/
 │   ├── webmcp.js             # WebMCP 도구 등록
 │   ├── race/
 │   │   ├── arena.js          # WebGL 렌더러, 카메라·선수 포즈
+│   │   ├── course.js         # 참가 방식별 구간 길이 · 버틸 수 있는 페이스
+│   │   ├── pacing.js         # 심박 · 페이스 · 퍼짐 계산
+│   │   ├── record.js         # 기록 표시 · 개인 최고 저장
+│   │   ├── strain.js         # 심박에 따른 카메라 흔들림
 │   │   └── keyboard.js       # 스페이스바 홀드 입력
 │   ├── data/
 │   │   ├── stations.js       # 8개 종목 정의
