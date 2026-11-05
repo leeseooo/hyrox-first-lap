@@ -610,6 +610,14 @@ h2 {
 .hold-button.held {
   background: var(--ink);
 }
+.hold-button:disabled {
+  background: var(--surface-2);
+  color: var(--muted);
+  opacity: 1;
+}
+.hold-button:disabled .keycap {
+  border-color: var(--muted);
+}
 .hold-icon {
   transform: rotate(90deg);
   font-size: 16px;
