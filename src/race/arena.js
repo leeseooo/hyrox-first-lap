@@ -1,10 +1,21 @@
-// Perspective 3D geometry with white occluding surfaces, black edges and point landmarks.
+// Perspective 3D geometry with flat-lit faces, edges and point landmarks in a dark arena.
 import { strainCamera } from './strain.js';
+import { BACKGROUND, DOTS, FOG, LIGHT, PAINT } from './palette.js';
 
-const vertex = `attribute vec3 position;uniform mat4 matrix;uniform mat4 model;uniform float pointSize;void main(){gl_Position=matrix*model*vec4(position,1.);gl_PointSize=pointSize;}`;
-const fragment = `precision mediump float;uniform vec3 color;uniform float isPoint;void main(){if(isPoint>.5&&length(gl_PointCoord-vec2(.5))>.5)discard;gl_FragColor=vec4(color,1.);}`;
-const WHITE = [1, 1, 1],
-  INK = [0.055, 0.055, 0.055];
+const vertex = `attribute vec3 position;attribute vec3 tint;uniform mat4 matrix;uniform mat4 model;uniform float pointSize;varying vec3 world;varying vec3 color;void main(){vec4 w=model*vec4(position,1.);world=w.xyz;color=tint;gl_Position=matrix*w;gl_PointSize=pointSize;}`;
+// Face normals come from screen-space derivatives, so every triangle is lit as one flat plane.
+// finish: x = glint, y = halftone shadows (the arena's points), z = rim light.
+const lighting = `if(shade>.5){vec3 n=normalize(cross(dFdx(world),dFdy(world))),v=normalize(eye-world);float l=max(dot(n,light),0.),tone=l>.66?tones.z:l>.25?tones.y:tones.x;if(finish.y>.5){vec2 cell=mod(gl_FragCoord.xy,dotSize)-dotSize*.5;float r=(1.-smoothstep(.2,.7,l))*dotSize*.62;tone=length(cell)<r?tones.x*.7:l>.66?tones.z:tones.y;}c*=tone;c=mix(c,vec3(1.),finish.x*step(.45,pow(max(dot(n,normalize(light+v)),0.),24.)));c+=finish.z*smoothstep(.55,.8,1.-dot(n,v));}`;
+const fragment = (shaded) =>
+  `${shaded ? '#extension GL_OES_standard_derivatives : enable\n' : ''}#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform float isPoint;uniform float shade;uniform vec3 finish;uniform float dotSize;uniform vec3 eye;uniform vec3 fogColor;uniform vec2 fog;uniform vec3 light;uniform vec3 tones;varying vec3 world;varying vec3 color;void main(){if(isPoint>.5&&length(gl_PointCoord-vec2(.5))>.5)discard;vec3 c=color;${shaded ? lighting : ''}c=mix(c,fogColor,smoothstep(fog.x,fog.y,distance(world,eye)));gl_FragColor=vec4(c,1.);}`;
+const appendTint = (target, count, color) => {
+  for (let j = 0; j < count; j++) target.push(color[0], color[1], color[2]);
+};
 const identity = () => new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 function multiply(a, b) {
   const c = new Float32Array(16);
@@ -651,17 +662,43 @@ export class ArenaRenderer {
         throw new Error(gl.getShaderInfoLog(shader));
       return shader;
     };
+    // Without derivatives the faces stay flat colour instead of lit planes.
+    const shaded = Boolean(gl.getExtension('OES_standard_derivatives'));
     this.program = gl.createProgram();
     gl.attachShader(this.program, compile(gl.VERTEX_SHADER, vertex));
-    gl.attachShader(this.program, compile(gl.FRAGMENT_SHADER, fragment));
+    gl.attachShader(this.program, compile(gl.FRAGMENT_SHADER, fragment(shaded)));
+    gl.bindAttribLocation(this.program, 0, 'position');
     gl.linkProgram(this.program);
     if (!gl.getProgramParameter(this.program, gl.LINK_STATUS))
       throw new Error('Shader link failed');
     gl.useProgram(this.program);
     this.u = {};
-    for (const name of ['matrix', 'model', 'color', 'pointSize', 'isPoint'])
+    for (const name of [
+      'matrix',
+      'model',
+      'pointSize',
+      'isPoint',
+      'shade',
+      'eye',
+      'fogColor',
+      'fog',
+      'light',
+      'tones',
+      'finish',
+      'dotSize',
+    ])
       this.u[name] = gl.getUniformLocation(this.program, name);
     this.position = gl.getAttribLocation(this.program, 'position');
+    this.tint = gl.getAttribLocation(this.program, 'tint');
+    const length = Math.hypot(...LIGHT.direction);
+    gl.uniform3fv(this.u.fogColor, BACKGROUND);
+    gl.uniform2f(this.u.fog, FOG.near, FOG.far);
+    gl.uniform3fv(
+      this.u.light,
+      LIGHT.direction.map((v) => v / length),
+    );
+    gl.uniform3fv(this.u.tones, LIGHT.tones);
+    this.paint = PAINT.floor;
     this.meshes = {};
     this.geometry = {};
     this.stationBatches = new Map();
@@ -701,40 +738,59 @@ export class ArenaRenderer {
     this.gl.viewport(0, 0, c.width, c.height);
   }
   add(x, y, z, sx, sy, sz, mesh = 'cube', rx = 0, ry = 0) {
-    this.world.push({ matrix: model(x, y, z, sx, sy, sz, ry, rx), mesh });
+    this.world.push({ matrix: model(x, y, z, sx, sy, sz, ry, rx), mesh, paint: this.paint });
+  }
+  label(text, x, y, z, height) {
+    this.labels.push({ args: [text, x, y, z, height], paint: this.paint });
   }
   buildWorld() {
     this.world = [];
     this.labels = [];
+    this.paint = PAINT.floor;
     this.add(0, -0.08, 0, 106, 0.16, 68);
+    this.paint = PAINT.wall;
     this.add(0, 2.6, -34, 106, 5.2, 0.04);
     this.add(0, 2.6, 34, 106, 5.2, 0.04);
     this.add(-53, 2.6, 0, 0.04, 5.2, 68);
     this.add(53, 2.6, 0, 0.04, 5.2, 68);
+    // Advertising boards run along the base of every wall.
+    this.paint = PAINT.board;
+    for (const z of [-33.9, 33.9]) this.add(0, 0.6, z, 105.6, 1.2, 0.08);
+    for (const x of [-52.9, 52.9]) this.add(x, 0.6, 0, 0.08, 1.2, 67.6);
+    this.paint = PAINT.post;
     for (let x = -48; x <= 48; x += 12) {
       this.add(x, 2.6, -34, 0.025, 5.2, 0.025);
       this.add(x, 2.6, 34, 0.025, 5.2, 0.025);
       this.add(x, 5.2, 0, 0.025, 0.025, 68);
     }
+    this.paint = PAINT.marking;
     for (const x of [-36, 36]) this.add(x, 0.018, 0, 0.025, 0.025, 40);
     for (const z of [-20, 20]) this.add(0, 0.018, z, 72, 0.025, 0.025);
     for (const x of [-50, 50]) this.add(x, 0.018, 0, 0.025, 0.025, 62);
     for (const z of [-31, 31]) this.add(0, 0.018, z, 100, 0.025, 0.025);
     for (let j = 0; j < 8; j++) {
       const [x, z] = layout[j];
+      this.paint = PAINT.lane;
       for (const dx of [-1.7, 1.7]) this.add(x + dx, 0.02, 3, 0.022, 0.025, 30);
       for (let k = 0; k < 18; k++) this.add(x, 0.03, 17 - k * 1.5, 3.4, 0.02, 0.018);
       this.equipment(j, x, z + (j === 0 ? 2.2 : j === 4 ? 0.8 : 0));
+      this.paint = PAINT.sign;
       this.add(x + 2.25, 1.25, 18.5, 0.75, 1.25, 0.035);
-      this.labels.push([String(j + 1).padStart(2, '0'), x + 2.25, 1.1, 18.53, 0.35]);
+      this.label(String(j + 1).padStart(2, '0'), x + 2.25, 1.1, 18.53, 0.35);
     }
-    this.labels.push(['ROXZONE IN', 0, 2.5, 21, 0.35], ['OUT', -40, 1.6, 23, 0.35]);
+    this.paint = PAINT.sign;
+    this.label('ROXZONE IN', 0, 2.5, 21, 0.35);
     this.add(0, 2.75, 21, 4.5, 0.75, 0.025);
+    this.paint = PAINT.marking;
+    this.label('OUT', -40, 1.6, 23, 0.35);
     // The final straight has a real arch, timing strip and barriers.
+    this.paint = PAINT.sign;
     for (const x of [36.8, 43.2]) this.add(x, 1.8, -20, 0.15, 3.6, 0.15);
     this.add(40, 3.25, -20, 6.5, 0.7, 0.12);
-    this.labels.push(['FINISH', 40, 3.07, -19.93, 0.39]);
+    this.label('FINISH', 40, 3.07, -19.93, 0.39);
+    this.paint = PAINT.marking;
     this.add(40, 0.03, -20, 6.2, 0.02, 0.45);
+    this.paint = PAINT.metal;
     for (const side of [-1, 1])
       for (let k = 0; k < 6; k++) {
         const x = 40 + side * 3.5,
@@ -751,8 +807,14 @@ export class ArenaRenderer {
     this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(points), this.gl.STATIC_DRAW);
     this.deleteBatch(this.staticBatch);
     this.staticBatch = this.captureBatch(() => {
-      for (const item of this.world) this.draw(item.matrix, item.mesh);
-      for (const label of this.labels) this.drawLabel(...label);
+      for (const item of this.world) {
+        this.paint = item.paint;
+        this.draw(item.matrix, item.mesh);
+      }
+      for (const label of this.labels) {
+        this.paint = label.paint;
+        this.drawLabel(...label.args);
+      }
     });
     if (!this.crowdBatch) this.crowdBatch = this.captureBatch(() => this.crowd(0, false));
   }
@@ -760,31 +822,42 @@ export class ArenaRenderer {
     const add = (dx, y, dz, sx, sy, sz, mesh = 'cube', rx = 0) =>
       this.add(x + dx, y, z + dz, sx, sy, sz, mesh, rx);
     if (type === 0) {
+      this.paint = PAINT.rubber;
       add(0, 0.06, 0, 1.25, 0.1, 1.25);
+      this.paint = PAINT.metal;
       for (const side of [-1, 1]) {
         add(side * 0.48, 1.55, -0.27, 0.06, 3.1, 0.06);
         add(side * 0.48, 2.85, -0.13, 0.18, 0.09, 0.25);
         add(side * 0.43, 0.5, -0.5, 0.04, 1, 0.04);
       }
       add(0, 3.05, -0.27, 1.05, 0.065, 0.06);
+      this.paint = PAINT.rubber;
       add(0, 1.62, -0.15, 0.34, 0.42, 0.14);
       add(0, 1.62, -0.064, 0.29, 0.34, 0.02);
+      this.paint = PAINT.weight;
       add(0, 0.5, -0.27, 0.7, 0.25, 0.7, 'cylinder', Math.PI / 2);
+      this.paint = PAINT.sled;
       add(0, 0.5, -0.1, 0.52, 0.09, 0.52, 'cylinder', Math.PI / 2);
     }
     if (type === 4) {
+      this.paint = PAINT.metal;
       add(0, 0.24, 0.35, 0.12, 0.12, 4.9);
+      this.paint = PAINT.weight;
       add(0, 0.63, -1.25, 0.77, 0.25, 0.77, 'cylinder', Math.PI / 2);
+      this.paint = PAINT.sled;
       add(0, 0.63, -1.09, 0.57, 0.08, 0.57, 'cylinder', Math.PI / 2);
+      this.paint = PAINT.metal;
       for (const side of [-1, 1]) {
         add(side * 0.21, 0.34, -0.6, 0.18, 0.065, 0.37, 'cube', -0.4);
         add(side * 0.21, 0.44, -0.6, 0.2, 0.025, 0.035);
       }
       add(0, 0.89, -1.2, 0.035, 0.6, 0.035, 'cube', -0.2);
+      this.paint = PAINT.rubber;
       add(0, 1.22, -1.13, 0.34, 0.29, 0.12);
       add(0, 1.22, -1.06, 0.28, 0.24, 0.02);
     }
     if (type === 7) {
+      this.paint = PAINT.weight;
       add(0, 2.25, -0.7, 4.4, 4.5, 0.065);
       const targets =
         this.profile?.id === 'mixed-doubles'
@@ -795,11 +868,15 @@ export class ArenaRenderer {
           : [[0, this.profile?.targetHeight || 3]];
       for (const [dx, h] of targets) {
         const size = this.profile?.id === 'mixed-doubles' ? 0.26 : 0.75;
+        this.paint = PAINT.sign;
         add(dx, h, -0.66, size, size, 0.04);
+        this.paint = PAINT.rubber;
         add(dx, h, -0.63, size * 0.4, size * 0.4, 0.025);
-        this.labels.push([h.toFixed(2) + ' M', x + dx + 1.1, h - 0.05, z - 0.62, 0.13]);
+        this.paint = PAINT.weight;
+        this.label(h.toFixed(2) + ' M', x + dx + 1.1, h - 0.05, z - 0.62, 0.13);
       }
-      this.labels.push(['TARGET', x, 4.1, z - 0.62, 0.18]);
+      this.label('TARGET', x, 4.1, z - 0.62, 0.18);
+      this.paint = PAINT.rubber;
       add(1.8, 0.024, 2.5, 1, 0.02, 1.5);
     }
   }
@@ -821,25 +898,43 @@ export class ArenaRenderer {
     this.clearEquipment();
     this.buildWorld();
   }
-  bufferDraw(buffer, count, mode, color) {
+  // tint is either one colour for every vertex or a buffer with a colour per vertex.
+  bufferDraw(buffer, count, mode, tint) {
     const gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.enableVertexAttribArray(this.position);
     gl.vertexAttribPointer(this.position, 3, gl.FLOAT, false, 0, 0);
-    gl.uniform3fv(this.u.color, color);
+    if (Array.isArray(tint)) {
+      gl.disableVertexAttribArray(this.tint);
+      gl.vertexAttrib3fv(this.tint, tint);
+    } else {
+      gl.bindBuffer(gl.ARRAY_BUFFER, tint);
+      gl.enableVertexAttribArray(this.tint);
+      gl.vertexAttribPointer(this.tint, 3, gl.FLOAT, false, 0, 0);
+    }
+    gl.uniform1f(this.u.shade, mode === gl.TRIANGLES ? 1 : 0);
     gl.drawArrays(mode, 0, count);
   }
   draw(matrix, mesh = 'cube') {
+    const paint = this.paint;
     if (this.capture) {
-      for (const type of ['tri', 'lines'])
-        this.appendTransformed(this.capture[type], this.geometry[mesh][type], matrix);
+      for (const type of ['tri', 'lines']) {
+        const vertices = this.geometry[mesh][type];
+        this.appendTransformed(this.capture[type], vertices, matrix);
+        appendTint(
+          this.capture[`${type}Tint`],
+          vertices.length / 3,
+          type === 'tri' ? paint.face : paint.edge,
+        );
+      }
       return;
     }
     const gl = this.gl,
       g = this.meshes[mesh];
     gl.uniformMatrix4fv(this.u.model, false, matrix);
-    this.bufferDraw(g.tri.buffer, g.tri.count, gl.TRIANGLES, WHITE);
-    this.bufferDraw(g.lines.buffer, g.lines.count, gl.LINES, INK);
+    gl.uniform3fv(this.u.finish, paint.finish);
+    this.bufferDraw(g.tri.buffer, g.tri.count, gl.TRIANGLES, paint.face);
+    this.bufferDraw(g.lines.buffer, g.lines.count, gl.LINES, paint.edge);
   }
   appendTransformed(target, vertices, m) {
     for (let j = 0; j < vertices.length; j += 3) {
@@ -854,30 +949,43 @@ export class ArenaRenderer {
     }
   }
   captureBatch(callback) {
-    const data = { tri: [], lines: [] };
+    const data = { tri: [], lines: [], triTint: [], linesTint: [] },
+      paint = this.paint;
     this.capture = data;
     try {
       callback();
     } finally {
       this.capture = null;
+      this.paint = paint;
     }
-    const batch = {};
-    for (const type of ['tri', 'lines']) {
+    const upload = (values) => {
       const buffer = this.gl.createBuffer();
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffer);
-      this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(data[type]), this.gl.STATIC_DRAW);
-      batch[type] = { buffer, count: data[type].length / 3 };
-    }
+      this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array(values), this.gl.STATIC_DRAW);
+      return buffer;
+    };
+    const batch = {};
+    for (const type of ['tri', 'lines'])
+      batch[type] = {
+        buffer: upload(data[type]),
+        tint: upload(data[`${type}Tint`]),
+        count: data[type].length / 3,
+      };
     return batch;
   }
   deleteBatch(batch) {
-    if (batch) for (const type of ['tri', 'lines']) this.gl.deleteBuffer(batch[type].buffer);
+    if (batch)
+      for (const type of ['tri', 'lines']) {
+        this.gl.deleteBuffer(batch[type].buffer);
+        this.gl.deleteBuffer(batch[type].tint);
+      }
   }
   drawBatch(batch) {
     const gl = this.gl;
     gl.uniformMatrix4fv(this.u.model, false, identity());
-    this.bufferDraw(batch.tri.buffer, batch.tri.count, gl.TRIANGLES, WHITE);
-    this.bufferDraw(batch.lines.buffer, batch.lines.count, gl.LINES, INK);
+    gl.uniform3f(this.u.finish, 0, 0, 0);
+    this.bufferDraw(batch.tri.buffer, batch.tri.count, gl.TRIANGLES, batch.tri.tint);
+    this.bufferDraw(batch.lines.buffer, batch.lines.count, gl.LINES, batch.lines.tint);
   }
   box(x, y, z, sx, sy, sz, mesh = 'cube', ry = 0, rx = 0) {
     this.draw(model(x, y, z, sx, sy, sz, ry, rx), mesh);
@@ -906,9 +1014,14 @@ export class ArenaRenderer {
         lerp(pose.shoulderY, local[1], 0.58) - 0.14,
         lerp(0.1, local[2], 0.47) + 0.09,
       ]);
+      this.paint = PAINT.sleeve;
       this.rod(shoulder, elbow, 0.13);
+      this.paint = PAINT.skin;
       this.box(...elbow, 0.13, 0.13, 0.13, 'sphere');
       this.rod(elbow, hand, 0.105);
+      this.paint = PAINT.band;
+      this.rod(blend(elbow, hand, 0.74), blend(elbow, hand, 0.86), 0.125);
+      this.paint = PAINT.skin;
       this.box(...hand, 0.13, 0.17, 0.075, 'sphere', pose.yaw);
       for (let f = 0; f < 4; f++) {
         const a = this.worldPoint(pose, [
@@ -932,16 +1045,21 @@ export class ArenaRenderer {
     }
   }
   sled(x, z, load = 152) {
+    this.paint = PAINT.rubber;
     for (const side of [-1, 1]) this.box(x + side * 0.51, 0.09, z, 0.13, 0.14, 1.6);
+    this.paint = PAINT.sled;
     this.box(x, 0.2, z, 1.25, 0.14, 1.3);
+    this.paint = PAINT.weight;
     for (const y of load <= 102 ? [0.34, 0.46] : [0.34, 0.46, 0.58])
       this.box(x, y, z, 0.68, 0.1, 0.68, 'cylinder');
+    this.paint = PAINT.metal;
     this.box(x, 0.69, z, 0.08, 0.45, 0.08, 'cylinder');
     for (const side of [-1, 1])
       this.box(x + side * 0.43, 0.75, z + 0.45, 0.06, 1.3, 0.06, 'cylinder');
     this.box(x, 1.31, z + 0.45, 0.92, 0.05, 0.05);
   }
   rope(a, b) {
+    this.paint = PAINT.rope;
     for (let j = 0; j < 12; j++) {
       const q = j / 12,
         r = (j + 1) / 12,
@@ -954,6 +1072,7 @@ export class ArenaRenderer {
   }
   kettlebell(x, y, z, load = 24) {
     const size = load === 16 ? 0.29 : 0.35;
+    this.paint = PAINT.weight;
     this.box(x, y - 0.27, z, size, size * 1.15, size, 'sphere');
     const points = [
       [x - 0.1, y - 0.12, z],
@@ -994,12 +1113,14 @@ export class ArenaRenderer {
         label.vertices,
         model(x, y, z, height, height, height),
       );
+      appendTint(this.capture.linesTint, label.count, this.paint.label);
       return;
     }
     this.gl.uniformMatrix4fv(this.u.model, false, model(x, y, z, height, height, height));
-    this.bufferDraw(label.buffer, label.count, this.gl.LINES, INK);
+    this.bufferDraw(label.buffer, label.count, this.gl.LINES, this.paint.label);
   }
   crowd(t, cheering) {
+    this.paint = PAINT.crowd;
     for (const side of [-1, 1])
       for (let j = 0; j < 4; j++) {
         const x = 40 + side * (3.25 + (j % 2) * 0.15),
@@ -1030,6 +1151,7 @@ export class ArenaRenderer {
       row = !pose.run && index === 4 && !pose.watching;
     const hipY = row ? 0.52 : Math.max(0.22, y - 0.84),
       hipZ = low ? 0.65 : 0.1;
+    this.paint = PAINT.skin;
     this.box(
       ...pt([0, y + 0.015, 0]),
       sex === 'female' ? 0.25 : 0.28,
@@ -1039,6 +1161,7 @@ export class ArenaRenderer {
       pose.yaw,
       pose.pitch,
     );
+    this.paint = PAINT.kit;
     this.rod(pt([0, hipY, hipZ]), pt([0, pose.shoulderY, 0.1]), sex === 'female' ? 0.29 : 0.34);
     const stride =
       pose.run || pose.following || ([1, 3, 5, 6].includes(index) && !pose.watching)
@@ -1055,11 +1178,15 @@ export class ArenaRenderer {
           Math.max(0.15, hipY * 0.52) + (row ? 0.18 : 0),
           hipZ - 0.12 + (row ? -0.5 : side * stride * 0.55),
         ]);
+      this.paint = PAINT.shorts;
       this.rod(pt([side * 0.1, hipY, hipZ]), knee, 0.14);
+      this.paint = PAINT.skin;
       this.rod(knee, foot, 0.11);
+      this.paint = PAINT.rubber;
       this.box(...foot, 0.14, 0.1, 0.27, 'sphere', pose.yaw);
     }
     this.hands(pose);
+    this.paint = PAINT.kit;
     this.drawLabel('TEAM', pose.root[0], y + 0.3, pose.root[2], 0.13, 'teammate-label');
   }
   drawStation(j, eq, s, active) {
@@ -1070,11 +1197,13 @@ export class ArenaRenderer {
     if (j === 1 || j === 2) {
       const load = j === 1 ? profile?.push : profile?.pull;
       this.sled(x, eq.sledZ, load);
+      this.paint = PAINT.sled;
       this.drawLabel(`${load || 152} KG`, x, 0.29, eq.sledZ + 0.68, 0.14, `sled-${j}`);
     }
     if (j === 2) {
       const hand = this.worldPoint(eq, eq.hands[0]);
       this.rope([x, 0.16, eq.sledZ + 0.65], [hand[0], hand[1] - 0.03, hand[2]]);
+      this.paint = PAINT.rope;
       for (let k = 0; k < 10; k++) {
         const a = k * Math.PI * 0.48,
           b = (k + 1) * Math.PI * 0.48;
@@ -1089,8 +1218,10 @@ export class ArenaRenderer {
       for (const side of [-1, 1]) {
         const hand = this.worldPoint(eq, eq.hands[side === -1 ? 0 : 1]);
         this.rope([x + side * 0.48, 2.95, z + 2.07], hand);
+        this.paint = PAINT.rubber;
         this.box(...hand, 0.19, 0.04, 0.07);
       }
+      this.paint = PAINT.rubber;
       this.drawLabel(
         active && i === 0
           ? String(Math.floor(s.progress * 1000)).padStart(4, '0')
@@ -1107,8 +1238,10 @@ export class ArenaRenderer {
     if (j === 4) {
       const h = eq.hands[0],
         hp = this.worldPoint(eq, [0, h[1], h[2]]);
+      this.paint = PAINT.metal;
       this.box(...hp, 0.55, 0.055, 0.07);
       this.rope([x, 0.55, z - 0.25], hp);
+      this.paint = PAINT.rubber;
       this.box(x, 0.49, eq.root[2] + 0.12, 0.52, 0.11, 0.42);
       this.drawLabel(
         active && i === 4
@@ -1139,6 +1272,7 @@ export class ArenaRenderer {
       }
     if (j === 6) {
       const top = active && i === j ? eq.shoulderY + 0.19 : 0.35;
+      this.paint = PAINT.weight;
       this.rod(
         this.worldPoint(eq, [-0.57, top, 0.06]),
         this.worldPoint(eq, [0.57, top, 0.06]),
@@ -1148,6 +1282,7 @@ export class ArenaRenderer {
       this.drawLabel(`${profile?.bag || 20} KG`, ...label, 0.12, 'bag-load');
     }
     if (j === 7) {
+      this.paint = PAINT.weight;
       this.box(...eq.ball, 0.4, 0.4, 0.4, 'sphere', active && i === 7 ? t * 0.35 : 0);
       this.drawLabel(
         `${profile?.ball || 6}`,
@@ -1164,10 +1299,11 @@ export class ArenaRenderer {
       pose = participantPose(s),
       t = s.phaseTime,
       i = pose.index;
-    gl.clearColor(1, 1, 1, 1);
+    gl.clearColor(...BACKGROUND, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.uniform1f(this.u.isPoint, 0);
     gl.uniform1f(this.u.pointSize, 2.1 * this.dpr);
+    gl.uniform1f(this.u.dotSize, 5 * this.dpr);
     // Heart-rate strain: sway, tunnel vision and a slump when blown (off with reduced motion).
     const strain = strainCamera({
         effort: s.sim?.effort,
@@ -1185,10 +1321,11 @@ export class ArenaRenderer {
         ),
       );
     gl.uniformMatrix4fv(this.u.matrix, false, vp);
+    gl.uniform3f(this.u.eye, pose.eye[0], pose.eye[1] + strain.bob, pose.eye[2]);
     this.drawBatch(this.staticBatch);
     gl.uniformMatrix4fv(this.u.model, false, identity());
     gl.uniform1f(this.u.isPoint, 1);
-    this.bufferDraw(this.pointsBuffer, this.pointsCount, gl.POINTS, INK);
+    this.bufferDraw(this.pointsBuffer, this.pointsCount, gl.POINTS, DOTS);
     gl.uniform1f(this.u.isPoint, 0);
     const active =
         ['workout', 'partner', 'handoff'].includes(s.mode) || (!s.mode && s.phase % 2 === 1),
@@ -1219,6 +1356,7 @@ export class ArenaRenderer {
         this.deleteBatch(this.routeBatch);
         this.cachedRoute = s.route;
         this.routeBatch = this.captureBatch(() => {
+          this.paint = PAINT.route;
           const points = s.route.samples;
           for (let k = 1; k < points.length; k += 3) {
             const a = points[k - 1],
@@ -1232,6 +1370,7 @@ export class ArenaRenderer {
     if (['finish', 'celebrate', 'complete'].includes(s.mode)) this.crowd(s.time || 0, true);
     else this.drawBatch(this.crowdBatch);
     if (pose.celebrating) {
+      this.paint = PAINT.confetti;
       for (let j = 0; j < 16; j++) {
         const q = j * 1.71;
         this.box(

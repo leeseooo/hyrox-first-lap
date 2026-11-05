@@ -12,6 +12,8 @@
   --muted: #999;
   --line: #333;
   --danger: #ff3b30;
+  /* Matches BACKGROUND in src/race/palette.js so the canvas never flashes another colour. */
+  --scene: #0a0a0a;
 }
 * {
   box-sizing: border-box;
@@ -369,7 +371,7 @@ h1 {
   position: relative;
   height: 450px;
   overflow: hidden;
-  background: white;
+  background: var(--scene);
   cursor: pointer;
   touch-action: none;
   user-select: none;
@@ -1749,7 +1751,7 @@ html[lang='ko'] .team-badge {
   animation: none;
 }
 .arena.blown canvas {
-  filter: contrast(0.5) blur(1px);
+  filter: grayscale(1) brightness(0.7) blur(1px);
 }
 .finish-stats {
   display: flex;
