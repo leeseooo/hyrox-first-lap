@@ -21,7 +21,7 @@ import { stations } from './data/stations.js';
 import { registerWebMcpTools } from './webmcp.js';
 import { segmentFor } from './race/course.js';
 import { createPacing, stepPacing } from './race/pacing.js';
-import { formatRaceTime } from './race/record.js';
+import { formatRaceTime, loadBest, saveIfBest } from './race/record.js';
 import { heartRate, strainLevel } from './race/strain.js';
 const $ = (id) => document.getElementById(id);
 setLocale(initialLanguage());
@@ -50,7 +50,8 @@ const state = {
 let attemptStarted = false,
   attemptAssisted = false,
   attemptFinished = false,
-  attemptNumber = 1;
+  attemptNumber = 1,
+  lastResult = null;
 const measuredStations = new Set();
 function metrics(extra = {}) {
   return {
@@ -189,6 +190,48 @@ function finishStation() {
     ]);
   }
 }
+function browserStorage() {
+  try {
+    return localStorage;
+  } catch {
+    return null;
+  }
+}
+// Practice runs (any skip or station jump) finish without a time or a personal best.
+function finishRace() {
+  const storage = browserStorage(),
+    { id } = state.profile,
+    practice = attemptAssisted,
+    time = state.raceTime,
+    blowups = state.sim.blowups;
+  let isBest = false,
+    best = loadBest(storage, id)?.time ?? null;
+  if (!practice) {
+    isBest = saveIfBest(storage, id, {
+      time,
+      blowups,
+      splits: state.splits,
+      date: new Date().toISOString().slice(0, 10),
+    }).isBest;
+    if (isBest) best = time;
+  }
+  lastResult = { practice, time, blowups, isBest, best };
+  renderResult();
+  return lastResult;
+}
+function renderResult() {
+  if (!lastResult) return;
+  const { practice, time, blowups, isBest, best } = lastResult;
+  $('finishTime').textContent = practice ? tr('PRACTICE') : formatRaceTime(time);
+  $('finishBlowups').textContent = String(blowups);
+  $('finishBest').textContent = best === null ? '—' : formatRaceTime(best);
+  $('finishRecord').hidden = !practice && !isBest;
+  $('finishRecord').textContent = tr(
+    practice
+      ? 'Practice finish — skips do not count. Race again without skipping to set a time.'
+      : 'New personal best!',
+  );
+}
 function advance() {
   if (state.mode === 'run') {
     const from = participantPose({ ...state, progress: 1 }),
@@ -250,9 +293,22 @@ function advance() {
     state.progress = 1;
     state.mode = 'complete';
     state.complete = true;
+    const result = finishRace();
     if (!attemptFinished) {
       attemptFinished = true;
-      track('race_complete', metrics({ completed_stations: state.done.size }));
+      track(
+        'race_complete',
+        metrics({
+          completed_stations: state.done.size,
+          blowups: result.blowups,
+          ...(result.practice
+            ? {}
+            : {
+                race_time_s: Math.round(result.time * 10) / 10,
+                personal_best: result.isBest ? 1 : 0,
+              }),
+        }),
+      );
       if (!attemptAssisted && state.done.size === 8) track('race_complete_full', metrics());
     }
     stop();
@@ -607,6 +663,7 @@ function reset() {
   state.raceTime = 0;
   state.sim = createPacing();
   state.splits = [];
+  lastResult = null;
   renderer?.clearEquipment();
   selectPhase(0, true);
   updateStrain();
@@ -677,6 +734,7 @@ function setLanguage(value) {
   update();
   shownPercent = -1;
   updateStrain();
+  renderResult();
   return getLanguage();
 }
 $('language').onchange = () => setLanguage($('language').value);
@@ -706,11 +764,14 @@ function shareLink(medium) {
   return url.href;
 }
 async function shareFinish() {
-  const text = tr(
-    state.profile.doubles
-      ? 'We finished our first HYROX race on FIRST LAP.'
-      : 'I finished my first HYROX race on FIRST LAP.',
-  );
+  const timed = lastResult && !lastResult.practice,
+    text = tr(
+      timed
+        ? `${state.profile.doubles ? 'We' : 'I'} finished FIRST LAP in ${formatRaceTime(lastResult.time)}. Can you pace it better?`
+        : state.profile.doubles
+          ? 'We finished our first HYROX race on FIRST LAP.'
+          : 'I finished my first HYROX race on FIRST LAP.',
+    );
   let method;
   if (navigator.share) {
     try {
