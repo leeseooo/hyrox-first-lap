@@ -17,7 +17,7 @@
     "screenshots": "node scripts/screenshots.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
@@ -25,8 +25,8 @@
     "globals": "^17.13.0",
     "playwright-core": "^1.63.0",
     "prettier": "^3.9.9",
-    "vite": "^8.3.2",
+    "vite": "^8.3.8",
     "vitest": "^5.0.3",
-    "wrangler": "^4.146.0"
+    "wrangler": "^4.165.0"
   }
 }
